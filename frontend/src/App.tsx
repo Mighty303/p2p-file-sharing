@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { useState, useCallback } from 'react';
 import { 
   Header,
   QRCodeDisplay,
-  QRCodeScanner,
   ChatPanel,
   FilePanel,
   TabBar,
@@ -19,102 +17,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState<string>('');
   const [showQR, setShowQR] = useState<boolean>(false);
-  const [showScanner, setShowScanner] = useState<boolean>(false);
   const [qrData, setQrData] = useState<string>('');
-  const [scannedData, setScannedData] = useState<string>('');
-  const [isScanning, setIsScanning] = useState<boolean>(false);
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
-  const scannerElementId = 'qr-reader';
-
-  // Handler to close QR scanner
-  const handleScannerClose = useCallback((): void => {
-    if (html5QrCodeRef.current && isScanning) {
-      html5QrCodeRef.current.stop()
-        .then(() => {
-          html5QrCodeRef.current?.clear();
-          html5QrCodeRef.current = null;
-        })
-        .catch(console.error)
-        .finally(() => {
-          setIsScanning(false);
-          setShowScanner(false);
-        });
-    } else {
-      setIsScanning(false);
-      setShowScanner(false);
-    }
-  }, [isScanning]);
-
-  // Handler for manual connection via QR code or pasted data
-  const handleManualConnect = useCallback((peerData: string): void => {
-    try {
-      let jsonData: string;
-      
-      if (peerData.startsWith('p2p://connect?data=')) {
-        const url = new URL(peerData);
-        const dataParam = url.searchParams.get('data');
-        if (!dataParam) {
-          throw new Error('Invalid URL format');
-        }
-        jsonData = decodeURIComponent(dataParam);
-      } else {
-        jsonData = peerData;
-      }
-      
-      const data = JSON.parse(jsonData) as ConnectionData;
-      if (data.type === 'p2p-connection' && data.peerId) {
-        const newPeer: Peer = { 
-          id: data.peerId, 
-          connected: true,
-          timestamp: data.timestamp
-        };
-        setPeers(prevPeers => [...prevPeers, newPeer]);
-        setMessages(prevMessages => [...prevMessages, {
-          id: Date.now(),
-          text: `Connected to peer ${data.peerId}`,
-          sender: 'System',
-          timestamp: new Date().toLocaleTimeString()
-        }]);
-        handleScannerClose();
-      }
-    } catch (err) {
-      console.error('Invalid QR data:', err);
-      alert('Invalid QR code data');
-    }
-  }, [handleScannerClose]);
-
-  // Handler to start QR scanner
-  const startScanner = useCallback(async (): Promise<void> => {
-    try {
-      if (isScanning) return;
-      
-      setIsScanning(true);
-      
-      const html5QrCode = new Html5Qrcode(scannerElementId);
-      html5QrCodeRef.current = html5QrCode;
-      
-      const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 }
-      };
-      
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        (decodedText: string) => {
-          console.log('QR Code detected:', decodedText);
-          handleManualConnect(decodedText);
-        },
-        () => {
-          // Ignore scanning errors (they happen frequently while scanning)
-        }
-      );
-    } catch (err) {
-      console.error('Error starting scanner:', err);
-      alert('Could not access camera. Please check permissions.');
-      handleScannerClose();
-    }
-  }, [handleScannerClose, handleManualConnect, isScanning]);
 
   // Connect/Disconnect handler
   const handleConnect = useCallback((): void => {
@@ -134,27 +37,10 @@ export default function App() {
       setPeers([]);
       setQrData('');
       setShowQR(false);
-      handleScannerClose();
     }
-  }, [isConnected, handleScannerClose]);
+  }, [isConnected]);
 
-  // Handle pasting connection data
-  const handlePasteConnect = useCallback((): void => {
-    if (scannedData) {
-      handleManualConnect(scannedData);
-      setScannedData('');
-    }
-  }, [scannedData, handleManualConnect]);
 
-  // Toggle scanner
-  const handleScannerToggle = useCallback((): void => {
-    if (showScanner) {
-      handleScannerClose();
-    } else {
-      setShowScanner(true);
-      startScanner().catch(console.error);
-    }
-  }, [handleScannerClose, showScanner, startScanner]);
 
   // Message handlers
   const handleSendMessage = useCallback((): void => {
@@ -176,13 +62,6 @@ export default function App() {
     }
   }, [handleSendMessage]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      handleScannerClose();
-    };
-  }, [handleScannerClose]);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="container mx-auto px-4 py-8">
@@ -194,12 +73,7 @@ export default function App() {
               peerId={peerId}
               qrData={qrData}
               showQR={showQR}
-              showScanner={showScanner}
-              scannedData={scannedData}
               onShowQRToggle={() => setShowQR(!showQR)}
-              onScannerToggle={handleScannerToggle}
-              onScannedDataChange={setScannedData}
-              onPasteConnect={handlePasteConnect}
               peersCount={peers.length}
             />
           )}
@@ -224,15 +98,6 @@ export default function App() {
             )}
           </div>
         </div>
-
-        {showScanner && (
-          <QRCodeScanner
-            isScanning={isScanning}
-            onClose={handleScannerClose}
-            onScan={handleManualConnect}
-            scannerElementId={scannerElementId}
-          />
-        )}
 
         <div className="mt-6 text-center text-slate-400 text-sm">
           <p>Ready to integrate WebRTC, WebSocket, or libp2p for P2P connectivity</p>

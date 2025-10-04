@@ -1,16 +1,11 @@
-import { QrCode, Camera, Users } from 'lucide-react';
+import { QrCode, Users } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 
 interface QRCodeDisplayProps {
   peerId: string;
   qrData: string;
   showQR: boolean;
-  showScanner: boolean;
-  scannedData: string;
   onShowQRToggle: () => void;
-  onScannerToggle: () => void;
-  onScannedDataChange: (data: string) => void;
-  onPasteConnect: () => void;
   peersCount: number;
 }
 
@@ -18,12 +13,7 @@ export function QRCodeDisplay({
   peerId, 
   qrData, 
   showQR, 
-  showScanner,
-  scannedData,
   onShowQRToggle,
-  onScannerToggle,
-  onScannedDataChange,
-  onPasteConnect,
   peersCount
 }: QRCodeDisplayProps) {
   return (
@@ -66,35 +56,6 @@ export function QRCodeDisplay({
                 <pre className="text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap break-all">
                   {qrData}
                 </pre>
-              </div>
-              
-              <div className="space-y-2">
-                <button 
-                  onClick={onScannerToggle}
-                  className="w-full bg-purple-600/50 hover:bg-purple-600/70 text-white px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2"
-                >
-                  <Camera size={16} />
-                  {showScanner ? 'Stop Camera' : 'Scan QR with Camera'}
-                </button>
-                
-                <div className="text-slate-400 text-center text-sm">or</div>
-                
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={scannedData}
-                    onChange={(e) => onScannedDataChange(e.target.value)}
-                    placeholder="Paste peer connection data..."
-                    className="flex-1 bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                  <button
-                    onClick={onPasteConnect}
-                    disabled={!scannedData.trim()}
-                    className="bg-slate-700/50 hover:bg-slate-700 disabled:bg-slate-800/50 text-slate-300 px-4 py-2 rounded-lg transition-all disabled:cursor-not-allowed"
-                  >
-                    Connect
-                  </button>
-                </div>
               </div>
             </div>
           </div>
