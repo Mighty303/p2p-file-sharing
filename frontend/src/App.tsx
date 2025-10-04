@@ -7,20 +7,14 @@ import {
   NotConnected
 } from './components';
 import type { Message, Peer } from './types';
-import { loadPeers, addPeer, removePeer, updatePeerConnection } from './utils/peerStorage';
 import { useWebRTC } from './hooks/useWebRTC';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'files'>('chat');
-  const [peers, setPeers] = useState<Peer[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState<string>('');
 
-  // Load peers from storage on mounta
-  useEffect(() => {
-    const storedPeers = loadPeers();
-    setPeers(storedPeers);
-  }, []);
+
 
   // Connect/Disconnect handler
 const { peerId, isConnected, connect, disconnect, connectToPeer, sendMessage, setOnMessage, connections } = useWebRTC();
@@ -100,15 +94,24 @@ const handleConnect = useCallback((): void => {
                     placeholder="Enter peer ID to connect..."
                     className="flex-1 bg-slate-900/50 px-3 py-1 rounded-lg text-slate-300"
                   />
-                  <button
-                    onClick={() => {
-                      connectToPeer(remotePeerId);
-                      setRemotePeerId('');
-                    }}
-                    className="px-4 py-1 bg-purple-500 text-white rounded-lg"
-                  >
-                    Connect
-                  </button>
+                    <button
+                      className="px-4 py-1 bg-purple-500 text-white rounded-lg"
+                      onClick={async () => {
+                        if (remotePeerId === peerId) {
+                          alert("You cannot connect to yourself!");
+                          return;
+                        }
+
+                        try {
+                          await connectToPeer(remotePeerId);
+                          setRemotePeerId('');
+                        } catch (err) {
+                          console.error('Failed to connect to peer:', err);
+                        }
+                      }}
+                    >
+                      Connect
+                    </button>
                 </div>
             </div>
           )}
