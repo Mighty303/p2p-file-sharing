@@ -1,7 +1,5 @@
-export * from './Header';
-export * from './QRCodeDisplay';
-export * from './QRCodeScanner';
-export * from './ChatPanel';
-export * from './FilePanel';
-export * from './TabBar';
-export * from './NotConnected';
+export { Header } from './Header';
+export { ChatPanel } from './ChatPanel';
+export { FilePanel } from './FilePanel';
+export { TabBar } from './TabBar';
+export { NotConnected } from './NotConnected';

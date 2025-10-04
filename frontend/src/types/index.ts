@@ -11,8 +11,4 @@ export interface Peer {
   timestamp?: number;
 }
 
-export interface ConnectionData {
-  peerId: string;
-  timestamp: number;
-  type: string;
-}
+
