@@ -1,5 +1,6 @@
 import { Hash, Copy, Check, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import { QRCodeCanvas } from 'qrcode.react';
 
 interface RoomPanelProps {
   currentRoom: string | null;
@@ -58,7 +59,7 @@ export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom }
           </div>
         </>
       ) : (
-        <div className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-6">
+        <div className="bg-slate-700/30 border border-slate-600/50 rounded-xl p-6 space-y-4">
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-slate-400 text-sm mb-1">Room Code</p>
@@ -71,8 +72,18 @@ export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom }
               {copied ? <Check size={20} className="text-green-400" /> : <Copy size={20} className="text-slate-300" />}
             </button>
           </div>
-          <p className="text-slate-400 text-sm mb-4">Share this code with others to connect</p>
-          
+
+          <p className="text-slate-400 text-sm mb-4">Share this code or scan the QR to join</p>
+
+          <div className="flex justify-center md:justify-start mb-8">
+            <QRCodeCanvas
+              value={`http://192.168.1.76:5173/room/${currentRoom}`}
+              size={128}
+              bgColor="#1e293b"
+              fgColor="#d8b4fe"
+            />
+          </div>
+
           <button
             onClick={onLeaveRoom}
             className="w-full flex items-center justify-center gap-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/50 text-red-300 px-4 py-3 rounded-xl font-semibold transition-all"

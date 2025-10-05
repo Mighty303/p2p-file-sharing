@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { 
   Header,
   ChatPanel,
@@ -34,124 +35,151 @@ export default function App() {
   } = useWebRTC();
 
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
+    const { roomCode } = useParams<{ roomCode: string }>();
+
+    // auto-connect + auto-join QR room
+    const hasJoinedRoom = useRef(false);
+
+  useEffect(() => {
+    if (!roomCode || hasJoinedRoom.current) return;
+
+    hasJoinedRoom.current = true;
+
+    const joinRoom = async () => {
+      try {
+        if (!isConnected) {
+          await connect();
+        }
+
+        await joinRoomByCode(roomCode);
+        setConnectionStatus(`✅ Joined room: ${roomCode}`);
+      } catch (err) {
+        console.error('Failed to auto-join room:', err);
+        setConnectionStatus('❌ Failed to join room');
+      }
+
+      setTimeout(() => setConnectionStatus(null), 3000);
+    };
+
+    joinRoom();
+  }, [roomCode, isConnected, connect, joinRoomByCode]);
 
 
-  // Listen for incoming messages
-useEffect(() => {
-  setOnMessage((data: any) => {
-    if (data.type === 'file') {
+
+    // Listen for incoming messages
+  useEffect(() => {
+    setOnMessage((data: any) => {
+      if (data.type === 'file') {
+        setMessages(prev => [...prev, {
+          id: Date.now(),
+          type: 'file' as const,
+          fileName: data.fileName,
+          url: data.url,
+          fileType: data.fileType,
+          sender: 'Peer',
+          timestamp: new Date().toLocaleTimeString()
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now(),
+          type: 'message' as const,
+          text: data.text,
+          sender: data.sender,
+          timestamp: new Date().toLocaleTimeString()
+        }]);
+      }
+    });
+  }, [setOnMessage]);
+
+  const handleLeaveRoom = async () => {
+    try {
+      await leaveRoom();
+      setConnectionStatus('✅ Left room');
+      setActiveTab('room');
+      setMessages([]);
+    } catch (err) {
+      console.error('Failed to leave room:', err);
+      setConnectionStatus('❌ Failed to leave room');
+    }
+    
+    setTimeout(() => setConnectionStatus(null), 3000);
+  };
+
+  const handleCreateRoom = async () => {
+    try {
+      const code = await createRoom();
+      setConnectionStatus(`✅ Room created: ${code}`);
+    } catch (err) {
+      console.error('Failed to create room:', err);
+      setConnectionStatus('❌ Failed to create room');
+    }
+    
+    setTimeout(() => setConnectionStatus(null), 3000);
+  };
+
+  const handleJoinRoom = async (code: string) => {
+    try {
+      await joinRoomByCode(code);
+      setConnectionStatus(`✅ Joined room: ${code}`);
+    } catch (err) {
+      console.error('Failed to join room:', err);
+      setConnectionStatus('❌ Room not found');
+    }
+    
+    setTimeout(() => setConnectionStatus(null), 3000);
+  };
+
+  // Handle sending message
+  const handleSendMessage = useCallback(async (): Promise<void> => {
+    if (!messageInput.trim() || !isConnected) return;
+
+    const message = {
+      type: 'message' as const,
+      text: messageInput,
+      sender: peerId,
+      timestamp: new Date().toLocaleTimeString()
+    };
+
+    await sendMessage(message);
+
+    setMessages(prev => [...prev, { 
+      ...message, 
+      id: Date.now(), 
+      sender: 'You' 
+    }]);
+    setMessageInput('');
+  }, [messageInput, isConnected, peerId, sendMessage]);
+
+    const handleFileSelect = async (file: File) => {
+      // Create a temporary URL for the local file
+      const tempUrl = URL.createObjectURL(file);
+
       setMessages(prev => [...prev, {
         id: Date.now(),
         type: 'file' as const,
-        fileName: data.fileName,
-        url: data.url,
-        fileType: data.fileType,
-        sender: 'Peer',
+        fileName: file.name,
+        url: tempUrl,  // ✅ Add the URL
+        sender: 'You',
         timestamp: new Date().toLocaleTimeString()
       }]);
-    } else {
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        type: 'message' as const,
-        text: data.text,
-        sender: data.sender,
-        timestamp: new Date().toLocaleTimeString()
-      }]);
-    }
-  });
-}, [setOnMessage]);
 
-const handleLeaveRoom = async () => {
-  try {
-    await leaveRoom();
-    setConnectionStatus('✅ Left room');
-    setActiveTab('room');
-    setMessages([]);
-  } catch (err) {
-    console.error('Failed to leave room:', err);
-    setConnectionStatus('❌ Failed to leave room');
-  }
-  
-  setTimeout(() => setConnectionStatus(null), 3000);
-};
+      await sendFile(file);
+    };
 
-const handleCreateRoom = async () => {
-  try {
-    const code = await createRoom();
-    setConnectionStatus(`✅ Room created: ${code}`);
-    setActiveTab('chat');
-  } catch (err) {
-    console.error('Failed to create room:', err);
-    setConnectionStatus('❌ Failed to create room');
-  }
-  
-  setTimeout(() => setConnectionStatus(null), 3000);
-};
+    const handleConnect = useCallback(() => {
+      if (isConnected) {
+        disconnect();
+      } else {
+        connect();
+      }
+    }, [isConnected, connect, disconnect]);
 
-const handleJoinRoom = async (code: string) => {
-  try {
-    await joinRoomByCode(code);
-    setConnectionStatus(`✅ Joined room: ${code}`);
-    setActiveTab('chat');
-  } catch (err) {
-    console.error('Failed to join room:', err);
-    setConnectionStatus('❌ Room not found');
-  }
-  
-  setTimeout(() => setConnectionStatus(null), 3000);
-};
-
-  // Handle sending message
-const handleSendMessage = useCallback(async (): Promise<void> => {
-  if (!messageInput.trim() || !isConnected) return;
-
-  const message = {
-    type: 'message' as const,
-    text: messageInput,
-    sender: peerId,
-    timestamp: new Date().toLocaleTimeString()
-  };
-
-  await sendMessage(message);
-
-  setMessages(prev => [...prev, { 
-    ...message, 
-    id: Date.now(), 
-    sender: 'You' 
-  }]);
-  setMessageInput('');
-}, [messageInput, isConnected, peerId, sendMessage]);
-
-  const handleFileSelect = async (file: File) => {
-    // Create a temporary URL for the local file
-    const tempUrl = URL.createObjectURL(file);
-
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      type: 'file' as const,
-      fileName: file.name,
-      url: tempUrl,  // ✅ Add the URL
-      sender: 'You',
-      timestamp: new Date().toLocaleTimeString()
-    }]);
-
-    await sendFile(file);
-  };
-
-  const handleConnect = useCallback(() => {
-    if (isConnected) {
-      disconnect();
-    } else {
-      connect();
-    }
-  }, [isConnected, connect, disconnect]);
-
-  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  }, [handleSendMessage]);
+    const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendMessage();
+      }
+    }, [handleSendMessage]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -219,7 +247,7 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
         </div>
 
         <div className="mt-6 text-center text-slate-400 text-sm">
-          <p>Ready to integrate WebRTC, WebSocket, or libp2p for P2P connectivity</p>
+          <p>Built by Martin Wong</p>
         </div>
       </div>
     </div>
