@@ -8,9 +8,11 @@ import {
 } from './components';
 import type { Message } from './types';
 import { useWebRTC } from './hooks/useWebRTC';
+import { RoomPanel } from './components/RoomPanel';
+
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'files'>('chat');
+  const [activeTab, setActiveTab] = useState<'room' | 'chat' | 'files'>('room');
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState<string>('');
 
@@ -25,7 +27,11 @@ export default function App() {
     setOnMessage,
     sendFile, 
     connections,
-    connectionsCount
+    connectionsCount,
+    currentRoom,
+    createRoom,
+    joinRoomByCode,
+    leaveRoom
   } = useWebRTC();
 
   const [remotePeerId, setRemotePeerId] = useState('');
@@ -56,6 +62,46 @@ useEffect(() => {
     }
   });
 }, [setOnMessage]);
+
+const handleLeaveRoom = async () => {
+  try {
+    await leaveRoom();
+    setConnectionStatus('✅ Left room');
+    setActiveTab('room');
+    setMessages([]);
+  } catch (err) {
+    console.error('Failed to leave room:', err);
+    setConnectionStatus('❌ Failed to leave room');
+  }
+  
+  setTimeout(() => setConnectionStatus(null), 3000);
+};
+
+const handleCreateRoom = async () => {
+  try {
+    const code = await createRoom();
+    setConnectionStatus(`✅ Room created: ${code}`);
+    setActiveTab('chat');
+  } catch (err) {
+    console.error('Failed to create room:', err);
+    setConnectionStatus('❌ Failed to create room');
+  }
+  
+  setTimeout(() => setConnectionStatus(null), 3000);
+};
+
+const handleJoinRoom = async (code: string) => {
+  try {
+    await joinRoomByCode(code);
+    setConnectionStatus(`✅ Joined room: ${code}`);
+    setActiveTab('chat');
+  } catch (err) {
+    console.error('Failed to join room:', err);
+    setConnectionStatus('❌ Room not found');
+  }
+  
+  setTimeout(() => setConnectionStatus(null), 3000);
+};
 
   // Handle sending message
 const handleSendMessage = useCallback(async (): Promise<void> => {
@@ -143,42 +189,6 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
                   <span className="text-slate-300">{connectionsCount} peers connected</span>
                 </div>
               </div>
-              <div className="flex gap-2 mt-2">
-                <input
-                  value={remotePeerId}
-                  onChange={(e) => setRemotePeerId(e.target.value)}
-                  placeholder="Enter peer ID to connect..."
-                  className="flex-1 bg-slate-900/50 px-3 py-1 rounded-lg text-slate-300"
-                />
-                <button
-                  className="px-4 py-1 rounded-lg text-white font-semibold 
-                            bg-gradient-to-r from-purple-500 to-pink-500 
-                            hover:from-purple-600 hover:to-pink-600 
-                            shadow-lg shadow-purple-500/40 
-                            transition-all duration-300"
-                  onClick={async () => {
-                    if (remotePeerId === peerId) {
-                      alert("You cannot connect to yourself!");
-                      return;
-                    }
-
-                    try {
-                      await connectToPeer(remotePeerId);
-                      setRemotePeerId('');
-                      setConnectionStatus(`✅ Connected successfully to ${remotePeerId}`);
-                    } catch (err) {
-                      console.error('Failed to connect to peer:', err);
-                      setConnectionStatus(`❌ Failed to connect to ${remotePeerId}`);
-                    }
-
-                    // Auto-hide the toast after 3 seconds
-                    setTimeout(() => setConnectionStatus(null), 3000);
-                  }}
-                >
-                  Connect
-                </button>
-
-              </div>
             </div>
           )}
         </div>
@@ -197,9 +207,17 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
                 onSendMessage={handleSendMessage}
                 onKeyPress={handleKeyPress}
               />
-            ) : (
+            ) : activeTab === 'files' ? (
               <FilePanel onFileSelect={handleFileSelect} />
-            )}
+            ) : activeTab === 'room' ? (
+              <RoomPanel
+                currentRoom={currentRoom}
+                onCreateRoom={handleCreateRoom}
+                onJoinRoom={handleJoinRoom}
+                onLeaveRoom={handleLeaveRoom}
+                peerId={peerId}
+              />
+            ) : null}
           </div>
         </div>
 

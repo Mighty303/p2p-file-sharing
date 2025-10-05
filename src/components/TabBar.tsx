@@ -1,13 +1,23 @@
 import { MessageSquare, FolderOpen } from 'lucide-react';
 
 interface TabBarProps {
-  activeTab: 'chat' | 'files';
-  onTabChange: (tab: 'chat' | 'files') => void;
+  activeTab: 'room' | 'chat' | 'files';
+  onTabChange: (tab: 'room' | 'chat' | 'files') => void;
 }
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   return (
     <div className="flex border-b border-slate-700/50">
+      <button
+        onClick={() => onTabChange('room')}
+        className={`flex-1 py-3 px-4 font-semibold transition-all duration-300 ${
+          activeTab === 'room'
+            ? 'text-purple-400 border-b-2 border-purple-400'
+            : 'text-slate-400 hover:text-slate-200'
+        }`}
+      >
+        Room
+      </button>
       <button
         onClick={() => onTabChange('chat')}
         className={`flex-1 px-6 py-4 font-semibold transition-all duration-300 flex items-center justify-center gap-2 ${
