@@ -25,18 +25,30 @@ export function ChatPanel({
             <p className="text-slate-400">No messages yet. Start chatting!</p>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className="bg-slate-700/50 rounded-xl p-4 border border-slate-600/50"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-purple-400">{msg.sender}</span>
-                <span className="text-xs text-slate-400">{msg.timestamp}</span>
+            messages.map((msg) => (
+              <div
+                key={msg.id}
+                className="bg-slate-700/50 rounded-xl p-4 border border-slate-600/50"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-purple-400">{msg.sender}</span>
+                  <span className="text-xs text-slate-400">{msg.timestamp}</span>
+                </div>
+                {msg.type === 'file' && msg.url && msg.fileName ? (
+                  <div className="text-slate-200">
+                    <a 
+                      href={msg.url} 
+                      download={msg.fileName}
+                      className="text-blue-400 hover:underline flex items-center gap-2"
+                    >
+                      📎 {msg.fileName}
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-slate-200">{msg.text || ''}</p>
+                )}
               </div>
-              <p className="text-slate-200">{msg.text}</p>
-            </div>
-          ))
+            ))
         )}
       </div>
 

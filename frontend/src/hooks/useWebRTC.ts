@@ -1,12 +1,18 @@
 import { useState, useRef } from 'react';
 import Peer from 'peerjs';
 import type { DataConnection } from 'peerjs';
-import { generateKeyPair, encryptMessage, decryptMessage } from '../utils/crypto';
+import { generateKeyPair, encryptMessage, decryptMessage, encryptFile, decryptFile } from '../utils/crypto';
 
 type QueuedMessage = {
   peerId: string;
   message: any;
 };
+
+type QueuedFile = {
+    peerId: string;
+    file: File;
+    id: string;
+}
 
 export function useWebRTC() {
   const [peerId, setPeerId] = useState('');
@@ -14,18 +20,21 @@ export function useWebRTC() {
   const peerInstance = useRef<Peer | null>(null);
   const connections = useRef<Map<string, DataConnection>>(new Map());
   const onMessageRef = useRef<((msg: any) => void) | null>(null);
+  const incomingFiles = useRef<Map<string, { chunks: Uint8Array[]; fileName: string; totalChunks: number }>>(new Map());
+
 
   // Store AES keys per peer
   const AESKeys = useRef<Map<string, CryptoKey>>(new Map());
 
   // Queue messages until keys are ready
   const messageQueue = useRef<QueuedMessage[]>([]);
+  const fileQueue = useRef<QueuedFile[]>([]);
 
   const setOnMessage = (callback: (msg: any) => void) => {
     onMessageRef.current = callback;
   };
 
-  const flushQueue = async (peerId: string) => {
+  const flushMessageQueue = async (peerId: string) => {
     const key = AESKeys.current.get(peerId);
     if (!key) return;
 
@@ -35,6 +44,17 @@ export function useWebRTC() {
     }
     messageQueue.current = messageQueue.current.filter(q => q.peerId !== peerId);
   };
+
+  const flushFileQueue = async (peerId: string) => {
+    const key = AESKeys.current.get(peerId);
+    if (!key) return;
+
+    const queue = fileQueue.current.filter(q => q.peerId === peerId);
+    for (const item of queue) {
+      await sendFile(item.file, item.peerId);
+    }
+    fileQueue.current = fileQueue.current.filter(q => q.peerId !== peerId);
+  }
 
   const connect = () => {
     if (peerInstance.current) return;
@@ -80,84 +100,190 @@ export function useWebRTC() {
     conn.on('error', (err) => console.error('Connection error:', err));
   };
 
-  const connectToPeer = (remotePeerId: string) => {
-    if (!peerInstance.current) return;
+    const connectToPeer = (remotePeerId: string) => {
+        if (!peerInstance.current) return;
 
-    const conn = peerInstance.current.connect(remotePeerId);
+        const conn = peerInstance.current.connect(remotePeerId);
 
-    conn.on('open', async () => {
-      console.log('Connected to peer:', remotePeerId);
-      connections.current.set(remotePeerId, conn);
+        conn.on('open', async () => {
+            console.log('Connected to peer:', remotePeerId);
+            connections.current.set(remotePeerId, conn);
 
-      // Generate AES key for this peer if not exists
-      if (!AESKeys.current.has(remotePeerId)) {
-        const key = await generateKeyPair();
-        AESKeys.current.set(remotePeerId, key);
+            // Generate AES key for this peer if not exists
+            if (!AESKeys.current.has(remotePeerId)) {
+                const key = await generateKeyPair();
+                AESKeys.current.set(remotePeerId, key);
 
-        // Send key to remote peer
-        const rawKey = await crypto.subtle.exportKey('raw', key);
-        conn.send({ type: 'key_exchange', key: Array.from(new Uint8Array(rawKey)) });
-      }
+                // Send key to remote peer
+                const rawKey = await crypto.subtle.exportKey('raw', key);
+                conn.send({ type: 'key_exchange', key: Array.from(new Uint8Array(rawKey)) });
+            }
 
-      await flushQueue(remotePeerId);
-    });
+            await flushMessageQueue(remotePeerId);
+            await flushFileQueue(remotePeerId);
+        });
 
-    conn.on('data', async (data: any) => {
-      await handleData(remotePeerId, data);
-    });
+        conn.on('data', async (data: any) => {
+            await handleData(remotePeerId, data);
+        });
 
-    conn.on('error', (err) => console.error('Connection error:', err));
-  };
+        conn.on('error', (err) => console.error('Connection error:', err));
+    };
 
-  const handleData = async (peerId: string, data: any) => {
-    if (data.type === 'key_exchange') {
-      const importedKey = await crypto.subtle.importKey(
-        'raw',
-        new Uint8Array(data.key),
-        { name: 'AES-GCM' },
-        true,
-        ['encrypt', 'decrypt']
-      );
-      AESKeys.current.set(peerId, importedKey);
-      console.log(`AES key established for peer ${peerId}`);
+    const handleData = async (peerId: string, data: any) => {
+        if (data.type === 'key_exchange') {
+            const importedKey = await crypto.subtle.importKey(
+            'raw',
+            new Uint8Array(data.key),
+            { name: 'AES-GCM' },
+            true,
+            ['encrypt', 'decrypt']
+            );
+            AESKeys.current.set(peerId, importedKey);
+            console.log(`AES key established for peer ${peerId}`);
 
-      await flushQueue(peerId);
-      return;
-    }
+            await flushMessageQueue(peerId);
+            return;
+        }
 
-    if (data.type === 'encrypted_message') {
-      const key = AESKeys.current.get(peerId);
-      if (!key) {
-        console.warn('Received encrypted message but AES key not ready. Ignored.');
-        return;
-      }
+        if (data.type === 'encrypted_message') {
+            const key = AESKeys.current.get(peerId);
+            if (!key) {
+                console.warn('Received encrypted message but AES key not ready. Ignored.');
+            return;
+            }
 
-      const iv = new Uint8Array(data.payload.iv);
-      const ciphertext = new Uint8Array(data.payload.ciphertext);
-      const decryptedText = await decryptMessage(key, iv, ciphertext);
+            const iv = new Uint8Array(data.payload.iv);
+            const ciphertext = new Uint8Array(data.payload.ciphertext);
+            const decryptedText = await decryptMessage(key, iv, ciphertext);
 
-      if (onMessageRef.current) onMessageRef.current(JSON.parse(decryptedText));
-    }
-  };
+            if (onMessageRef.current) onMessageRef.current(JSON.parse(decryptedText));
+        }
 
-  const sendMessageToPeer = async (peerId: string, message: any) => {
-    const key = AESKeys.current.get(peerId);
-    const conn = connections.current.get(peerId);
-    if (!key || !conn || !conn.open) {
-      messageQueue.current.push({ peerId, message });
-      return;
-    }
+        if (data.type === 'file_chunk' && AESKeys.current.has(peerId)) {
+            const key = AESKeys.current.get(peerId)!;
+            
+            // Decode from base64
+            const iv = Uint8Array.from(atob(data.iv), c => c.charCodeAt(0));
+            const ciphertext = Uint8Array.from(atob(data.ciphertext), c => c.charCodeAt(0));
 
-    const encrypted = await encryptMessage(key, JSON.stringify(message));
-    conn.send({ type: 'encrypted_message', payload: encrypted });
-  };
+            const decryptedBuffer = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv },
+                key,
+                ciphertext
+            );
 
-  const sendMessage = async (message: any) => {
-    if (connections.current.size === 0) return;
-    for (const peerId of connections.current.keys()) {
-      await sendMessageToPeer(peerId, message);
-    }
-  };
+            let fileEntry = incomingFiles.current.get(data.fileId);
+            if (!fileEntry) {
+                fileEntry = { chunks: [], fileName: data.fileName, totalChunks: data.totalChunks };
+                incomingFiles.current.set(data.fileId, fileEntry);
+            }
 
-  return { peerId, isConnected, connect, disconnect, connectToPeer, sendMessage, setOnMessage, connections: connections.current };
+            fileEntry.chunks[data.index] = new Uint8Array(decryptedBuffer);
+
+            if (fileEntry.chunks.filter(Boolean).length === fileEntry.totalChunks) {
+                const blob = new Blob(fileEntry.chunks as Uint8Array<ArrayBuffer>[], { type: data.fileType });
+                const url = URL.createObjectURL(blob);
+                console.log('File received:', fileEntry.fileName, url);
+                incomingFiles.current.delete(data.fileId);
+
+                if (onMessageRef.current) {
+                    onMessageRef.current({ 
+                        type: 'file',
+                        fileName: fileEntry.fileName, 
+                        url,
+                        fileType: data.fileType
+                    });
+                }
+            }
+        }
+    };
+
+    const sendMessageToPeer = async (peerId: string, message: any) => {
+        const key = AESKeys.current.get(peerId);
+        const conn = connections.current.get(peerId);
+        if (!key || !conn || !conn.open) {
+            messageQueue.current.push({ peerId, message });
+            return;
+        }
+
+        const encrypted = await encryptMessage(key, JSON.stringify(message));
+        conn.send({ type: 'encrypted_message', payload: encrypted });
+    };
+
+    const sendMessage = async (message: any) => {
+        if (connections.current.size === 0) return;
+        for (const peerId of connections.current.keys()) {
+            await sendMessageToPeer(peerId, message);
+        }
+    };
+
+    const CHUNK_SIZE = 16 * 1024; // 64KB
+
+    const sendFile = async (file: File, peerId?: string) => {
+        const peers = peerId ? [peerId] : Array.from(connections.current.keys());
+
+        for (const pid of peers) {
+            const key = AESKeys.current.get(pid);
+            const conn = connections.current.get(pid);
+            if (!key || !conn || !conn.open) {
+                const fileId = crypto.randomUUID();
+                fileQueue.current.push({ peerId: pid, file, id: fileId });
+                continue;
+            }
+
+            const fileId = crypto.randomUUID();
+            const arrayBuffer = await file.arrayBuffer();
+            const totalChunks = Math.ceil(arrayBuffer.byteLength / CHUNK_SIZE);
+
+            console.log(`Sending ${totalChunks} chunks for file ${file.name}`);
+
+            for (let i = 0; i < totalChunks; i++) {
+                const chunkBuffer = arrayBuffer.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+                const chunkFile = new File([chunkBuffer], file.name, { type: file.type });
+
+                // Encrypt chunk
+                const encryptedChunk = await encryptFile(key, chunkFile);
+
+                console.log(`Chunk ${i} - ciphertext type:`, typeof encryptedChunk.ciphertext, 'length:', encryptedChunk.ciphertext.length);
+                console.log(`Chunk ${i} - iv type:`, typeof encryptedChunk.iv, 'length:', encryptedChunk.iv.length);
+
+                // Create a plain object with no extra properties
+                const fileChunkMessage = {
+                    type: 'file_chunk' as const,
+                    fileId: fileId,
+                    index: i,
+                    totalChunks: totalChunks,
+                    fileName: file.name,
+                    fileType: file.type,
+                    ciphertext: encryptedChunk.ciphertext, // Flatten structure
+                    iv: encryptedChunk.iv
+                };
+
+                console.log('Sending chunk message:', JSON.stringify(fileChunkMessage).length, 'bytes');
+
+                try {
+                    conn.send(fileChunkMessage);
+                } catch (err) {
+                    console.error('Failed to send chunk:', err);
+                    return; // Stop sending more chunks
+                }
+            }
+            console.log(`File "${file.name}" sent successfully`);
+        }
+    };
+
+
+  return { 
+        peerId, 
+        isConnected, 
+        connect, 
+        disconnect, 
+        connectToPeer, 
+        sendMessage, 
+        setOnMessage,
+        sendFile, 
+        connections: 
+        connections.current 
+    };
 }

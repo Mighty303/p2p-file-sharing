@@ -10,16 +10,21 @@ async function generateKeyPair(length = 256) {
 }
 
 async function encryptMessage(key: CryptoKey, message: string) {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoded = new TextEncoder().encode(message);
-    const ciphertext = await subtle.encrypt({
-        name: 'AES-GCM',
-        iv: iv,
-    }, key, encoded);
-    return {
-        iv: Array.from(iv),
-        ciphertext: Array.from(new Uint8Array(ciphertext)),
-    };
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);     // fill with random bytes
+
+  const encoded = new TextEncoder().encode(message);
+
+  const ciphertextBuffer = await subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encoded
+  );
+
+  return {
+    iv: Array.from(iv),
+    ciphertext: Array.from(new Uint8Array(ciphertextBuffer)),
+  };
 }
 
 async function decryptMessage(key: CryptoKey, iv: number[], ciphertext: number[]) {
@@ -30,4 +35,38 @@ async function decryptMessage(key: CryptoKey, iv: number[], ciphertext: number[]
     return new TextDecoder().decode(decrypted);
 }
 
-export { generateKeyPair, encryptMessage, decryptMessage };
+async function encryptFile(key: CryptoKey, file: File) {
+  const arrayBuffer = await file.arrayBuffer();
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+
+  const ciphertextBuffer = await globalThis.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    arrayBuffer
+  );
+
+  // Convert to base64 instead of arrays
+  const ivBase64 = btoa(String.fromCharCode(...iv));
+  const ciphertextBase64 = btoa(String.fromCharCode(...new Uint8Array(ciphertextBuffer)));
+
+  return {
+    iv: ivBase64,
+    ciphertext: ciphertextBase64,
+    fileName: file.name,
+    fileType: file.type
+  };
+}
+
+async function decryptFile(key: CryptoKey, iv: number[], ciphertext: number[], fileName: string, fileType: string) {
+  const decryptedBuffer = await globalThis.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: new Uint8Array(iv) },
+    key,
+    new Uint8Array(ciphertext)
+  );
+
+  return new File([decryptedBuffer], fileName, { type: fileType });
+}
+
+
+export { generateKeyPair, encryptMessage, decryptMessage, encryptFile, decryptFile };

@@ -22,7 +22,8 @@ export default function App() {
     disconnect, 
     connectToPeer, 
     sendMessage, 
-    setOnMessage, 
+    setOnMessage,
+    sendFile, 
     connections 
   } = useWebRTC();
 
@@ -31,34 +32,62 @@ export default function App() {
   const getConnectedPeers = () => Array.from(connections.keys());
 
   // Listen for incoming messages
-  useEffect(() => {
-    setOnMessage((data: any) => {
+useEffect(() => {
+  setOnMessage((data: any) => {
+    if (data.type === 'file') {
       setMessages(prev => [...prev, {
         id: Date.now(),
+        type: 'file' as const,
+        fileName: data.fileName,
+        url: data.url,
+        fileType: data.fileType,
+        sender: 'Peer',
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    } else {
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'message' as const,
         text: data.text,
         sender: data.sender,
         timestamp: new Date().toLocaleTimeString()
       }]);
-    });
-  }, [setOnMessage]);
+    }
+  });
+}, [setOnMessage]);
 
   // Handle sending message
-  const handleSendMessage = useCallback(async (): Promise<void> => {
-    if (!messageInput.trim() || !isConnected) return;
+const handleSendMessage = useCallback(async (): Promise<void> => {
+  if (!messageInput.trim() || !isConnected) return;
 
-    const message: Message = {
-      text: messageInput,
-      sender: peerId,
+  const message = {
+    type: 'message' as const,
+    text: messageInput,
+    sender: peerId,
+    timestamp: new Date().toLocaleTimeString()
+  };
+
+  await sendMessage(message);
+
+  setMessages(prev => [...prev, { 
+    ...message, 
+    id: Date.now(), 
+    sender: 'You' 
+  }]);
+  setMessageInput('');
+}, [messageInput, isConnected, peerId, sendMessage]);
+
+  const handleFileSelect = async (file: File) => {
+    await sendFile(file);
+    
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      type: 'file' as const,
+      fileName: file.name,
+      sender: 'You',
       timestamp: new Date().toLocaleTimeString()
-    };
-
-    // Send encrypted message via WebRTC
-    await sendMessage(message);
-
-    // Add to local UI
-    setMessages(prev => [...prev, { ...message, id: Date.now(), sender: 'You' }]);
-    setMessageInput('');
-  }, [messageInput, isConnected, peerId, sendMessage]);
+    }]);
+  };
 
   const handleConnect = useCallback(() => {
     if (isConnected) {
@@ -136,7 +165,7 @@ export default function App() {
                 onKeyPress={handleKeyPress}
               />
             ) : (
-              <FilePanel />
+              <FilePanel onFileSelect={handleFileSelect} />
             )}
           </div>
         </div>
