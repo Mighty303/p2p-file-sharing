@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import Peer from 'peerjs';
 import type { DataConnection } from 'peerjs';
-import { generateKeyPair, encryptMessage, decryptMessage, encryptFile, decryptFile } from '../utils/crypto';
+import { generateKeyPair, encryptMessage, decryptMessage, encryptFile } from '../utils/crypto';
 
 type QueuedMessage = {
   peerId: string;
@@ -16,6 +16,7 @@ type QueuedFile = {
 
 export function useWebRTC() {
   const [peerId, setPeerId] = useState('');
+  const [connectionsCount, setConnectionsCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const peerInstance = useRef<Peer | null>(null);
   const connections = useRef<Map<string, DataConnection>>(new Map());
@@ -91,6 +92,7 @@ export function useWebRTC() {
     conn.on('open', async () => {
       console.log('Connection opened with:', conn.peer);
       connections.current.set(conn.peer, conn);
+      setConnectionsCount(connections.current.size);
     });
 
     conn.on('data', async (data: any) => {
@@ -283,7 +285,8 @@ export function useWebRTC() {
         sendMessage, 
         setOnMessage,
         sendFile, 
-        connections: 
-        connections.current 
+        connections: connections.current,
+        connectionsCount,
+        connectedPeers: Array.from(connections.current.keys())
     };
 }

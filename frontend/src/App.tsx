@@ -24,12 +24,13 @@ export default function App() {
     sendMessage, 
     setOnMessage,
     sendFile, 
-    connections 
+    connections,
+    connectionsCount
   } = useWebRTC();
 
   const [remotePeerId, setRemotePeerId] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
 
-  const getConnectedPeers = () => Array.from(connections.keys());
 
   // Listen for incoming messages
 useEffect(() => {
@@ -110,10 +111,27 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {connectionStatus && (
+        <div className="fixed top-6 right-6 z-50">
+          <div
+            className={`px-4 py-3 rounded-xl shadow-lg border text-sm font-medium animate-fade-in-down
+              ${connectionStatus.startsWith('✅')
+                ? 'bg-green-600/20 text-green-300 border-green-600/50'
+                : 'bg-red-600/20 text-red-300 border-red-600/50'
+              }`}
+          >
+            {connectionStatus}
+          </div>
+        </div>
+      )}
+
       <div className="container mx-auto px-4 py-8">
         <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl shadow-2xl border border-slate-700/50 mb-6 p-6">
-          <Header isConnected={isConnected} onConnect={handleConnect} />
-          
+          <Header
+            isConnected={isConnected}
+            onConnect={handleConnect}
+            connectedPeers={Array.from(connections.keys())}
+          />          
           {isConnected && (
             <div className="mt-4 pt-4 border-t border-slate-700/50">
               <div className="flex items-center gap-4 text-sm">
@@ -122,7 +140,7 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
                   {peerId}
                 </code>
                 <div className="flex items-center gap-2 ml-auto">
-                  <span className="text-slate-300">{getConnectedPeers().length} peers connected</span>
+                  <span className="text-slate-300">{connectionsCount} peers connected</span>
                 </div>
               </div>
               <div className="flex gap-2 mt-2">
@@ -139,12 +157,18 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
                       alert("You cannot connect to yourself!");
                       return;
                     }
+
                     try {
                       await connectToPeer(remotePeerId);
                       setRemotePeerId('');
+                      setConnectionStatus(`✅ Connected successfully to ${remotePeerId}`);
                     } catch (err) {
                       console.error('Failed to connect to peer:', err);
+                      setConnectionStatus(`❌ Failed to connect to ${remotePeerId}`);
                     }
+
+                    // Auto-hide the toast after 3 seconds
+                    setTimeout(() => setConnectionStatus(null), 3000);
                   }}
                 >
                   Connect
