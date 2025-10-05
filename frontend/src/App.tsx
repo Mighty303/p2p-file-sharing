@@ -151,7 +151,11 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
                   className="flex-1 bg-slate-900/50 px-3 py-1 rounded-lg text-slate-300"
                 />
                 <button
-                  className="px-4 py-1 bg-purple-500 text-white rounded-lg"
+                  className="px-4 py-1 rounded-lg text-white font-semibold 
+                            bg-gradient-to-r from-purple-500 to-pink-500 
+                            hover:from-purple-600 hover:to-pink-600 
+                            shadow-lg shadow-purple-500/40 
+                            transition-all duration-300"
                   onClick={async () => {
                     if (remotePeerId === peerId) {
                       alert("You cannot connect to yourself!");
@@ -173,6 +177,7 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
                 >
                   Connect
                 </button>
+
               </div>
             </div>
           )}
