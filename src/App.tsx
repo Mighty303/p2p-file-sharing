@@ -43,16 +43,22 @@ export default function App() {
   useEffect(() => {
     if (!roomCode || hasJoinedRoom.current) return;
 
+    // Only proceed if we have a peerId (meaning connection is fully established)
+    if (!peerId) {
+      // If not connected yet, trigger connection
+      if (!isConnected) {
+        connect();
+      }
+      return; // Exit and wait for peerId
+    }
+
     hasJoinedRoom.current = true;
 
     const joinRoom = async () => {
       try {
-        if (!isConnected) {
-          await connect();
-        }
-
         await joinRoomByCode(roomCode);
         setConnectionStatus(`✅ Joined room: ${roomCode}`);
+        setActiveTab('chat'); // Switch to chat after joining
       } catch (err) {
         console.error('Failed to auto-join room:', err);
         setConnectionStatus('❌ Failed to join room');
@@ -62,9 +68,7 @@ export default function App() {
     };
 
     joinRoom();
-  }, [roomCode, isConnected, connect, joinRoomByCode]);
-
-
+  }, [roomCode, peerId, isConnected, connect, joinRoomByCode]); // Add peerId to dependencies
 
     // Listen for incoming messages
   useEffect(() => {
@@ -129,26 +133,26 @@ export default function App() {
     setTimeout(() => setConnectionStatus(null), 3000);
   };
 
-  // Handle sending message
-  const handleSendMessage = useCallback(async (): Promise<void> => {
-    if (!messageInput.trim() || !isConnected) return;
+    // Handle sending message
+    const handleSendMessage = useCallback(async (): Promise<void> => {
+      if (!messageInput.trim() || !isConnected) return;
 
-    const message = {
-      type: 'message' as const,
-      text: messageInput,
-      sender: peerId,
-      timestamp: new Date().toLocaleTimeString()
-    };
+      const message = {
+        type: 'message' as const,
+        text: messageInput,
+        sender: peerId,
+        timestamp: new Date().toLocaleTimeString()
+      };
 
-    await sendMessage(message);
+      await sendMessage(message);
 
-    setMessages(prev => [...prev, { 
-      ...message, 
-      id: Date.now(), 
-      sender: 'You' 
-    }]);
-    setMessageInput('');
-  }, [messageInput, isConnected, peerId, sendMessage]);
+      setMessages(prev => [...prev, { 
+        ...message, 
+        id: Date.now(), 
+        sender: 'You' 
+      }]);
+      setMessageInput('');
+    }, [messageInput, isConnected, peerId, sendMessage]);
 
     const handleFileSelect = async (file: File) => {
       // Create a temporary URL for the local file
@@ -158,12 +162,20 @@ export default function App() {
         id: Date.now(),
         type: 'file' as const,
         fileName: file.name,
-        url: tempUrl,  // ✅ Add the URL
+        url: tempUrl,
         sender: 'You',
         timestamp: new Date().toLocaleTimeString()
       }]);
 
-      await sendFile(file);
+      try {
+        await sendFile(file);
+        setConnectionStatus(`✅ File "${file.name}" sent successfully`);
+      } catch (err) {
+        console.error('Failed to send file:', err);
+        setConnectionStatus(`❌ Failed to send file "${file.name}"`);
+      }
+
+      setTimeout(() => setConnectionStatus(null), 3000);
     };
 
     const handleConnect = useCallback(() => {
