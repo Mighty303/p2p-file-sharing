@@ -6,7 +6,7 @@ import {
   TabBar,
   NotConnected
 } from './components';
-import type { Message, Peer } from './types';
+import type { Message } from './types';
 import { useWebRTC } from './hooks/useWebRTC';
 
 export default function App() {
@@ -14,61 +14,66 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState<string>('');
 
+  // WebRTC hook
+  const { 
+    peerId, 
+    isConnected, 
+    connect, 
+    disconnect, 
+    connectToPeer, 
+    sendMessage, 
+    setOnMessage, 
+    connections 
+  } = useWebRTC();
 
+  const [remotePeerId, setRemotePeerId] = useState('');
 
-  // Connect/Disconnect handler
-const { peerId, isConnected, connect, disconnect, connectToPeer, sendMessage, setOnMessage, connections } = useWebRTC();
-const [remotePeerId, setRemotePeerId] = useState('');
-const getConnectedPeers = () => Array.from(connections.keys());
+  const getConnectedPeers = () => Array.from(connections.keys());
 
-useEffect(() => {
-  setOnMessage((data: any) => {
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      text: data.text,
-      sender: data.sender,
-      timestamp: new Date().toLocaleTimeString()
-    }]);
-  });
-}, [setOnMessage]);
+  // Listen for incoming messages
+  useEffect(() => {
+    setOnMessage((data: any) => {
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        text: data.text,
+        sender: data.sender,
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    });
+  }, [setOnMessage]);
 
-// Update handleSendMessage
-const handleSendMessage = useCallback((): void => {
-  if (messageInput.trim() && isConnected) {
+  // Handle sending message
+  const handleSendMessage = useCallback(async (): Promise<void> => {
+    if (!messageInput.trim() || !isConnected) return;
 
-    const message = {
+    const message: Message = {
       text: messageInput,
       sender: peerId,
       timestamp: new Date().toLocaleTimeString()
     };
-    
-    // Send to peers
-    sendMessage(message);
-    
-    // Add to own messages
+
+    // Send encrypted message via WebRTC
+    await sendMessage(message);
+
+    // Add to local UI
     setMessages(prev => [...prev, { ...message, id: Date.now(), sender: 'You' }]);
     setMessageInput('');
-  }
-}, [messageInput, isConnected, peerId, sendMessage]);
+  }, [messageInput, isConnected, peerId, sendMessage]);
 
+  const handleConnect = useCallback(() => {
+    if (isConnected) {
+      disconnect();
+    } else {
+      connect();
+    }
+  }, [isConnected, connect, disconnect]);
 
-const handleConnect = useCallback((): void => {
-  if (isConnected) {
-    disconnect();
-  } else {
-    connect();
-
-  }
-}, [isConnected, connect, disconnect]);
-
-
-  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>): void => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   }, [handleSendMessage]);
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -87,32 +92,31 @@ const handleConnect = useCallback((): void => {
                   <span className="text-slate-300">{getConnectedPeers().length} peers connected</span>
                 </div>
               </div>
-                <div className="flex gap-2 mt-2">
-                  <input
-                    value={remotePeerId}
-                    onChange={(e) => setRemotePeerId(e.target.value)}
-                    placeholder="Enter peer ID to connect..."
-                    className="flex-1 bg-slate-900/50 px-3 py-1 rounded-lg text-slate-300"
-                  />
-                    <button
-                      className="px-4 py-1 bg-purple-500 text-white rounded-lg"
-                      onClick={async () => {
-                        if (remotePeerId === peerId) {
-                          alert("You cannot connect to yourself!");
-                          return;
-                        }
-
-                        try {
-                          await connectToPeer(remotePeerId);
-                          setRemotePeerId('');
-                        } catch (err) {
-                          console.error('Failed to connect to peer:', err);
-                        }
-                      }}
-                    >
-                      Connect
-                    </button>
-                </div>
+              <div className="flex gap-2 mt-2">
+                <input
+                  value={remotePeerId}
+                  onChange={(e) => setRemotePeerId(e.target.value)}
+                  placeholder="Enter peer ID to connect..."
+                  className="flex-1 bg-slate-900/50 px-3 py-1 rounded-lg text-slate-300"
+                />
+                <button
+                  className="px-4 py-1 bg-purple-500 text-white rounded-lg"
+                  onClick={async () => {
+                    if (remotePeerId === peerId) {
+                      alert("You cannot connect to yourself!");
+                      return;
+                    }
+                    try {
+                      await connectToPeer(remotePeerId);
+                      setRemotePeerId('');
+                    } catch (err) {
+                      console.error('Failed to connect to peer:', err);
+                    }
+                  }}
+                >
+                  Connect
+                </button>
+              </div>
             </div>
           )}
         </div>
