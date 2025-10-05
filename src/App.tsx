@@ -22,7 +22,6 @@ export default function App() {
     isConnected, 
     connect, 
     disconnect, 
-    connectToPeer, 
     sendMessage, 
     setOnMessage,
     sendFile, 
@@ -34,7 +33,6 @@ export default function App() {
     leaveRoom
   } = useWebRTC();
 
-  const [remotePeerId, setRemotePeerId] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
 
 
@@ -215,7 +213,6 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
                 onCreateRoom={handleCreateRoom}
                 onJoinRoom={handleJoinRoom}
                 onLeaveRoom={handleLeaveRoom}
-                peerId={peerId}
               />
             ) : null}
           </div>

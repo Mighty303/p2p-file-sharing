@@ -1,10 +1,7 @@
 import { WifiOff } from 'lucide-react';
 
-interface NotConnectedProps {
-  onConnect?: () => void;
-}
 
-export function NotConnected({ onConnect }: NotConnectedProps) {
+export function NotConnected() {
   return (
     <div className="text-center py-20">
       <WifiOff size={64} className="mx-auto text-slate-600 mb-4" />

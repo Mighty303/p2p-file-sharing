@@ -6,10 +6,9 @@ interface RoomPanelProps {
   onCreateRoom: () => void;
   onJoinRoom: (code: string) => void;
   onLeaveRoom: () => void; // Add this
-  peerId: string;
 }
 
-export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom, peerId }: RoomPanelProps) {
+export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom }: RoomPanelProps) {
   const [roomInput, setRoomInput] = useState('');
   const [copied, setCopied] = useState(false);
 

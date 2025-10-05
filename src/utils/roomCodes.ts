@@ -4,7 +4,7 @@ export function generateRoomCode(): string {
   const nouns = ['eagle', 'tiger', 'river', 'storm', 'cloud', 'flame', 'moon', 'star', 'wave', 'wind'];
   
   const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-  const noun = nouns[Math.floor(Math.random() * nouns.nouns.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
   const num = Math.floor(Math.random() * 100);
   
   return `${adj}-${noun}-${num}`;

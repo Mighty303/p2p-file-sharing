@@ -27,7 +27,7 @@ async function encryptMessage(key: CryptoKey, message: string) {
   };
 }
 
-async function decryptMessage(key: CryptoKey, iv: number[], ciphertext: number[]) {
+async function decryptMessage(key: CryptoKey, iv: Uint8Array, ciphertext: Uint8Array) {
     const decrypted = await subtle.decrypt({
         name: 'AES-GCM',
         iv: new Uint8Array(iv),
