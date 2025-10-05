@@ -78,15 +78,19 @@ const handleSendMessage = useCallback(async (): Promise<void> => {
 }, [messageInput, isConnected, peerId, sendMessage]);
 
   const handleFileSelect = async (file: File) => {
-    await sendFile(file);
-    
+    // Create a temporary URL for the local file
+    const tempUrl = URL.createObjectURL(file);
+
     setMessages(prev => [...prev, {
       id: Date.now(),
       type: 'file' as const,
       fileName: file.name,
+      url: tempUrl,  // ✅ Add the URL
       sender: 'You',
       timestamp: new Date().toLocaleTimeString()
     }]);
+
+    await sendFile(file);
   };
 
   const handleConnect = useCallback(() => {
