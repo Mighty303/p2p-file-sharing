@@ -27,39 +27,65 @@ export function useWebRTC() {
     const incomingFiles = useRef<Map<string, { chunks: Uint8Array[]; fileName: string; totalChunks: number }>>(new Map());
     const [currentRoom, setCurrentRoom] = useState<string | null>(null);
 
+    // Add this ref at the top with other refs
+    const pollInterval = useRef<number | null>(null);
 
-const createRoom = async (): Promise<string> => {
-  const roomCode = generateRoomCode(); // You'll need to add this function
-  
-  try {
-    const response = await fetch(`${ROOM_SERVER_URL}/room/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomCode, peerId })
-    });
+    // Add this function
+    const pollRoomMembers = async () => {
+        if (!currentRoom) return;
+        
+        try {
+            const response = await fetch(`${ROOM_SERVER_URL}/room/${currentRoom}/peers`);
+            const data = await response.json();
+            
+            // Connect to any peers we're not already connected to
+            for (const peer of data.peers) {
+            if (peer !== peerId && !connections.current.has(peer)) {
+                connectToPeer(peer);
+            }
+            }
+        } catch (err) {
+            console.error('Failed to poll room members:', err);
+        }
+    };
+
+    // Modify createRoom to start polling
+    const createRoom = async (): Promise<string> => {
+    const roomCode = generateRoomCode();
     
-    const data = await response.json();
-    setCurrentRoom(roomCode);
-    
-    // Connect to any existing peers in the room
-    const otherPeers = data.peers.filter((p: string) => p !== peerId);
-    for (const peer of otherPeers) {
-      connectToPeer(peer);
+    try {
+        const response = await fetch(`${ROOM_SERVER_URL}/room/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomCode, peerId })
+        });
+        
+        const data = await response.json();
+        setCurrentRoom(roomCode);
+        
+        // Connect to any existing peers in the room
+        const otherPeers = data.peers.filter((p: string) => p !== peerId);
+        for (const peer of otherPeers) {
+            connectToPeer(peer);
+        }
+        
+        // Start polling for new members every 3 seconds
+        pollInterval.current = setInterval(pollRoomMembers, 3000);
+        
+        return roomCode;
+    } catch (err) {
+        console.error('Failed to create room:', err);
+        throw err;
     }
-    
-    return roomCode;
-  } catch (err) {
-    console.error('Failed to create room:', err);
-    throw err;
-  }
-};
+    };
 
+    // Modify joinRoomByCode to start polling
     const joinRoomByCode = async (roomCode: string): Promise<void> => {
         try {
             const response = await fetch(`${ROOM_SERVER_URL}/room/join`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ roomCode, peerId })
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomCode, peerId })
             });
             
             if (!response.ok) {
@@ -73,6 +99,9 @@ const createRoom = async (): Promise<string> => {
             for (const peer of data.peers) {
                 connectToPeer(peer);
             }
+            
+            // Start polling for new members
+            pollInterval.current = setInterval(pollRoomMembers, 3000);
         } catch (err) {
             console.error('Failed to join room:', err);
             throw err;
@@ -82,11 +111,17 @@ const createRoom = async (): Promise<string> => {
     const leaveRoom = async (): Promise<void> => {
         if (!currentRoom) return;
         
+        // Stop polling
+        if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+        }
+        
         try {
             await fetch(`${ROOM_SERVER_URL}/room/leave`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roomCode: currentRoom, peerId })
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomCode: currentRoom, peerId })
             });
             
             setCurrentRoom(null);
@@ -166,6 +201,13 @@ const createRoom = async (): Promise<string> => {
 
     const disconnect = () => {
         if (!peerInstance.current) return;
+
+        // Stop polling if active
+        if (pollInterval.current) {
+            clearInterval(pollInterval.current);
+            pollInterval.current = null;
+        }
+
         peerInstance.current.destroy();
         peerInstance.current = null;
         setIsConnected(false);
