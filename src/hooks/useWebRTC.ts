@@ -16,7 +16,6 @@ type QueuedFile = {
 
 const ROOM_SERVER_URL = import.meta.env.VITE_ROOM_SERVER_URL || 'http://localhost:3001';
 
-
 export function useWebRTC() {
     const [peerId, setPeerId] = useState('');
     const [connectionsCount, setConnectionsCount] = useState(0);
@@ -26,66 +25,76 @@ export function useWebRTC() {
     const onMessageRef = useRef<((msg: any) => void) | null>(null);
     const incomingFiles = useRef<Map<string, { chunks: Uint8Array[]; fileName: string; totalChunks: number }>>(new Map());
     const [currentRoom, setCurrentRoom] = useState<string | null>(null);
-
-    // Add this ref at the top with other refs
     const pollInterval = useRef<number | null>(null);
 
-    // Add this function
+    // Store AES keys per peer
+    const AESKeys = useRef<Map<string, CryptoKey>>(new Map());
+
+    // Queue messages until keys are ready
+    const messageQueue = useRef<QueuedMessage[]>([]);
+    const fileQueue = useRef<QueuedFile[]>([]);
+
+    const setOnMessage = (callback: (msg: any) => void) => {
+        onMessageRef.current = callback;
+    };
+
+    // Poll for new room members
     const pollRoomMembers = async () => {
-        if (!currentRoom) return;
+        if (!currentRoom || !peerId) return;
         
         try {
             const response = await fetch(`${ROOM_SERVER_URL}/room/${currentRoom}/peers`);
+            if (!response.ok) return;
+            
             const data = await response.json();
             
             // Connect to any peers we're not already connected to
             for (const peer of data.peers) {
-            if (peer !== peerId && !connections.current.has(peer)) {
-                connectToPeer(peer);
-            }
+                if (peer !== peerId && !connections.current.has(peer)) {
+                    console.log('Discovered new peer in room:', peer);
+                    connectToPeer(peer);
+                }
             }
         } catch (err) {
             console.error('Failed to poll room members:', err);
         }
     };
 
-    // Modify createRoom to start polling
     const createRoom = async (): Promise<string> => {
-    const roomCode = generateRoomCode();
-    
-    try {
-        const response = await fetch(`${ROOM_SERVER_URL}/room/create`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roomCode, peerId })
-        });
+        const roomCode = generateRoomCode();
         
-        const data = await response.json();
-        setCurrentRoom(roomCode);
-        
-        // Connect to any existing peers in the room
-        const otherPeers = data.peers.filter((p: string) => p !== peerId);
-        for (const peer of otherPeers) {
-            connectToPeer(peer);
+        try {
+            const response = await fetch(`${ROOM_SERVER_URL}/room/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomCode, peerId })
+            });
+            
+            const data = await response.json();
+            setCurrentRoom(roomCode);
+            
+            // Connect to any existing peers in the room
+            const otherPeers = data.peers.filter((p: string) => p !== peerId);
+            for (const peer of otherPeers) {
+                connectToPeer(peer);
+            }
+            
+            // Start polling for new members every 3 seconds
+            pollInterval.current = window.setInterval(pollRoomMembers, 3000);
+            
+            return roomCode;
+        } catch (err) {
+            console.error('Failed to create room:', err);
+            throw err;
         }
-        
-        // Start polling for new members every 3 seconds
-        pollInterval.current = setInterval(pollRoomMembers, 3000);
-        
-        return roomCode;
-    } catch (err) {
-        console.error('Failed to create room:', err);
-        throw err;
-    }
     };
 
-    // Modify joinRoomByCode to start polling
     const joinRoomByCode = async (roomCode: string): Promise<void> => {
         try {
             const response = await fetch(`${ROOM_SERVER_URL}/room/join`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roomCode, peerId })
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomCode, peerId })
             });
             
             if (!response.ok) {
@@ -97,11 +106,13 @@ export function useWebRTC() {
             
             // Connect to all peers in the room
             for (const peer of data.peers) {
-                connectToPeer(peer);
+                if (peer !== peerId) {
+                    connectToPeer(peer);
+                }
             }
             
-            // Start polling for new members
-            pollInterval.current = setInterval(pollRoomMembers, 3000);
+            // Start polling for new members every 3 seconds
+            pollInterval.current = window.setInterval(pollRoomMembers, 3000);
         } catch (err) {
             console.error('Failed to join room:', err);
             throw err;
@@ -148,17 +159,6 @@ export function useWebRTC() {
         return `${adj}-${noun}-${num}`;
     }
 
-    // Store AES keys per peer
-    const AESKeys = useRef<Map<string, CryptoKey>>(new Map());
-
-    // Queue messages until keys are ready
-    const messageQueue = useRef<QueuedMessage[]>([]);
-    const fileQueue = useRef<QueuedFile[]>([]);
-
-    const setOnMessage = (callback: (msg: any) => void) => {
-        onMessageRef.current = callback;
-    };
-
     const flushMessageQueue = async (peerId: string) => {
         const key = AESKeys.current.get(peerId);
         if (!key) return;
@@ -184,15 +184,59 @@ export function useWebRTC() {
     const connect = () => {
         if (peerInstance.current) return;
 
-        const peer = new Peer();
+        // Configure WebRTC with STUN and TURN servers
+        const peer = new Peer({
+            config: {
+                iceServers: [
+                    // Google's free STUN servers
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' },
+                    
+                    // Free TURN servers from Open Relay Project
+                    // These allow connections through firewalls
+                    {
+                        urls: 'turn:openrelay.metered.ca:80',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    {
+                        urls: 'turn:openrelay.metered.ca:443',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    {
+                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    }
+                ],
+                // Improve connection reliability
+                iceCandidatePoolSize: 10
+            },
+            // Enable debug logging (set to 0 in production)
+            debug: 2
+        });
 
         peer.on('open', (id) => {
             setPeerId(id);
             setIsConnected(true);
-        console.log('My peer ID is:', id);
+            console.log('My peer ID is:', id);
         });
 
-        peer.on('error', (err) => console.error('Peer error:', err));
+        peer.on('error', (err) => {
+            console.error('Peer error:', err);
+            // Handle specific error types
+            if (err.type === 'network') {
+                console.error('Network error - check your internet connection');
+            } else if (err.type === 'peer-unavailable') {
+                console.error('Remote peer unavailable');
+            } else if (err.type === 'server-error') {
+                console.error('Signaling server error');
+            }
+        });
 
         peer.on('connection', (conn) => handleIncomingConnection(conn));
 
@@ -201,13 +245,13 @@ export function useWebRTC() {
 
     const disconnect = () => {
         if (!peerInstance.current) return;
-
+        
         // Stop polling if active
         if (pollInterval.current) {
             clearInterval(pollInterval.current);
             pollInterval.current = null;
         }
-
+        
         peerInstance.current.destroy();
         peerInstance.current = null;
         setIsConnected(false);
@@ -215,6 +259,7 @@ export function useWebRTC() {
         connections.current.clear();
         AESKeys.current.clear();
         messageQueue.current = [];
+        fileQueue.current = [];
     };
 
     const handleIncomingConnection = (conn: DataConnection) => {
@@ -230,17 +275,36 @@ export function useWebRTC() {
             await handleData(conn.peer, data);
         });
 
-        conn.on('error', (err) => console.error('Connection error:', err));
+        conn.on('close', () => {
+            console.log('Connection closed with:', conn.peer);
+            connections.current.delete(conn.peer);
+            AESKeys.current.delete(conn.peer);
+            setConnectionsCount(connections.current.size);
+        });
+
+        conn.on('error', (err) => {
+            console.error('Connection error with', conn.peer, ':', err);
+            connections.current.delete(conn.peer);
+            setConnectionsCount(connections.current.size);
+        });
     };
 
     const connectToPeer = (remotePeerId: string) => {
         if (!peerInstance.current) return;
+        if (connections.current.has(remotePeerId)) {
+            console.log('Already connected to', remotePeerId);
+            return;
+        }
 
-        const conn = peerInstance.current.connect(remotePeerId);
+        console.log('Connecting to peer:', remotePeerId);
+        const conn = peerInstance.current.connect(remotePeerId, {
+            reliable: true // Use reliable data channels
+        });
 
         conn.on('open', async () => {
             console.log('Connected to peer:', remotePeerId);
             connections.current.set(remotePeerId, conn);
+            setConnectionsCount(connections.current.size);
 
             // Generate AES key for this peer if not exists
             if (!AESKeys.current.has(remotePeerId)) {
@@ -260,22 +324,34 @@ export function useWebRTC() {
             await handleData(remotePeerId, data);
         });
 
-        conn.on('error', (err) => console.error('Connection error:', err));
+        conn.on('close', () => {
+            console.log('Connection closed with:', remotePeerId);
+            connections.current.delete(remotePeerId);
+            AESKeys.current.delete(remotePeerId);
+            setConnectionsCount(connections.current.size);
+        });
+
+        conn.on('error', (err) => {
+            console.error('Connection error with', remotePeerId, ':', err);
+            connections.current.delete(remotePeerId);
+            setConnectionsCount(connections.current.size);
+        });
     };
 
     const handleData = async (peerId: string, data: any) => {
         if (data.type === 'key_exchange') {
             const importedKey = await crypto.subtle.importKey(
-            'raw',
-            new Uint8Array(data.key),
-            { name: 'AES-GCM' },
-            true,
-            ['encrypt', 'decrypt']
+                'raw',
+                new Uint8Array(data.key),
+                { name: 'AES-GCM' },
+                true,
+                ['encrypt', 'decrypt']
             );
             AESKeys.current.set(peerId, importedKey);
             console.log(`AES key established for peer ${peerId}`);
 
             await flushMessageQueue(peerId);
+            await flushFileQueue(peerId);
             return;
         }
 
@@ -283,7 +359,7 @@ export function useWebRTC() {
             const key = AESKeys.current.get(peerId);
             if (!key) {
                 console.warn('Received encrypted message but AES key not ready. Ignored.');
-            return;
+                return;
             }
 
             const iv = new Uint8Array(data.payload.iv);
@@ -351,7 +427,7 @@ export function useWebRTC() {
         }
     };
 
-    const CHUNK_SIZE = 16 * 1024; // 64KB
+    const CHUNK_SIZE = 16 * 1024; // 16KB chunks
 
     const sendFile = async (file: File, peerId?: string) => {
         const peers = peerId ? [peerId] : Array.from(connections.current.keys());
@@ -378,10 +454,6 @@ export function useWebRTC() {
                 // Encrypt chunk
                 const encryptedChunk = await encryptFile(key, chunkFile);
 
-                console.log(`Chunk ${i} - ciphertext type:`, typeof encryptedChunk.ciphertext, 'length:', encryptedChunk.ciphertext.length);
-                console.log(`Chunk ${i} - iv type:`, typeof encryptedChunk.iv, 'length:', encryptedChunk.iv.length);
-
-                // Create a plain object with no extra properties
                 const fileChunkMessage = {
                     type: 'file_chunk' as const,
                     fileId: fileId,
@@ -389,25 +461,22 @@ export function useWebRTC() {
                     totalChunks: totalChunks,
                     fileName: file.name,
                     fileType: file.type,
-                    ciphertext: encryptedChunk.ciphertext, // Flatten structure
+                    ciphertext: encryptedChunk.ciphertext,
                     iv: encryptedChunk.iv
                 };
-
-                console.log('Sending chunk message:', JSON.stringify(fileChunkMessage).length, 'bytes');
 
                 try {
                     conn.send(fileChunkMessage);
                 } catch (err) {
                     console.error('Failed to send chunk:', err);
-                    return; // Stop sending more chunks
+                    return;
                 }
             }
             console.log(`File "${file.name}" sent successfully`);
         }
     };
 
-
-  return { 
+    return { 
         peerId, 
         isConnected, 
         connect, 

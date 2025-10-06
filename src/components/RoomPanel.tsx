@@ -77,7 +77,7 @@ export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom }
 
           <div className="flex justify-center md:justify-start mb-8">
             <QRCodeCanvas
-              value={`http://p2p-client.martinwong.me/room/${currentRoom}`}
+              value={`http://209.52.88.144:5173/room/${currentRoom}`}
               size={128}
               bgColor="#1e293b"
               fgColor="#d8b4fe"

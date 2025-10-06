@@ -10,7 +10,6 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         {/* Route for joining via QR code */}
         <Route path="/room/:roomCode" element={<App />} />
-        {/* Default route */}
         <Route path="*" element={<App />} />
       </Routes>
     </BrowserRouter>
