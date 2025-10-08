@@ -1,4 +1,4 @@
-# 🚀 P2P Chat & File Transfer
+# 🚀 Encrypted P2P Chat & File Transfer
 
 A secure, peer-to-peer chat and file sharing application built with WebRTC, React, and end-to-end encryption. No servers store your messages or files - everything is transmitted directly between peers.
 
