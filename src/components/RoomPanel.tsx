@@ -1,4 +1,4 @@
-import { Hash, Copy, Check, LogOut } from 'lucide-react';
+import { Hash, Copy, Check, LogOut, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 
@@ -6,18 +6,50 @@ interface RoomPanelProps {
   currentRoom: string | null;
   onCreateRoom: () => void;
   onJoinRoom: (code: string) => void;
-  onLeaveRoom: () => void; // Add this
+  onLeaveRoom: () => void;
 }
 
 export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom }: RoomPanelProps) {
   const [roomInput, setRoomInput] = useState('');
   const [copied, setCopied] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   const handleCopy = () => {
     if (currentRoom) {
       navigator.clipboard.writeText(currentRoom);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleCreateRoom = async () => {
+    setIsCreating(true);
+    try {
+      await onCreateRoom();
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleJoinRoom = async () => {
+    if (!roomInput.trim()) return;
+    setIsJoining(true);
+    try {
+      await onJoinRoom(roomInput.trim());
+      setRoomInput('');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    setIsLeaving(true);
+    try {
+      await onLeaveRoom();
+    } finally {
+      setIsLeaving(false);
     }
   };
 
@@ -31,10 +63,12 @@ export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom }
           </div>
 
           <button
-            onClick={onCreateRoom}
-            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg"
+            onClick={handleCreateRoom}
+            disabled={isCreating}
+            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Create New Room
+            {isCreating && <Loader2 size={20} className="animate-spin" />}
+            {isCreating ? 'Creating...' : 'Create New Room'}
           </button>
 
           <div className="flex gap-2">
@@ -43,18 +77,16 @@ export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom }
               value={roomInput}
               onChange={(e) => setRoomInput(e.target.value)}
               placeholder="Enter room code..."
-              className="flex-1 bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-400"
+              disabled={isJoining}
+              className="flex-1 bg-slate-700/50 border border-slate-600/50 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-400 disabled:opacity-50"
             />
             <button
-              onClick={() => {
-                if (roomInput.trim()) {
-                  onJoinRoom(roomInput.trim());
-                  setRoomInput('');
-                }
-              }}
-              className="px-6 py-3 bg-slate-600 hover:bg-slate-500 text-white rounded-xl font-semibold transition-all"
+              onClick={handleJoinRoom}
+              disabled={isJoining || !roomInput.trim()}
+              className="px-6 py-3 bg-slate-600 hover:bg-slate-500 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[100px] justify-center"
             >
-              Join
+              {isJoining && <Loader2 size={20} className="animate-spin" />}
+              {isJoining ? 'Joining...' : 'Join'}
             </button>
           </div>
         </>
@@ -85,11 +117,21 @@ export function RoomPanel({ currentRoom, onCreateRoom, onJoinRoom, onLeaveRoom }
           </div>
 
           <button
-            onClick={onLeaveRoom}
-            className="w-full flex items-center justify-center gap-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/50 text-red-300 px-4 py-3 rounded-xl font-semibold transition-all"
+            onClick={handleLeaveRoom}
+            disabled={isLeaving}
+            className="w-full flex items-center justify-center gap-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/50 text-red-300 px-4 py-3 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <LogOut size={20} />
-            Leave Room
+            {isLeaving ? (
+              <>
+                <Loader2 size={20} className="animate-spin" />
+                Leaving...
+              </>
+            ) : (
+              <>
+                <LogOut size={20} />
+                Leave Room
+              </>
+            )}
           </button>
         </div>
       )}

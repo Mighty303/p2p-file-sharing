@@ -1,4 +1,5 @@
-import { Wifi, WifiOff, Users } from 'lucide-react';
+import { Wifi, WifiOff, Users, Loader2 } from 'lucide-react';
+import { useState } from 'react';
 
 interface HeaderProps {
   isConnected: boolean;
@@ -7,6 +8,24 @@ interface HeaderProps {
 }
 
 export function Header({ isConnected, onConnect, connectedPeers }: HeaderProps) {
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnect = async () => {
+    if (isConnected) {
+      onConnect();
+      return;
+    }
+    
+    setIsConnecting(true);
+    try {
+      await onConnect();
+      // Wait a bit for connection to establish
+      setTimeout(() => setIsConnecting(false), 1000);
+    } catch (err) {
+      setIsConnecting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
@@ -19,15 +38,22 @@ export function Header({ isConnected, onConnect, connectedPeers }: HeaderProps) 
 
       <div className="flex flex-col items-end gap-2">
         <button
-          onClick={onConnect}
-          className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+          onClick={handleConnect}
+          disabled={isConnecting}
+          className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
             isConnected
               ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-lg shadow-green-500/50'
               : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg shadow-purple-500/50'
           }`}
         >
-          {isConnected ? <Wifi size={20} /> : <WifiOff size={20} />}
-          {isConnected ? 'Connected' : 'Connect'}
+          {isConnecting ? (
+            <Loader2 size={20} className="animate-spin" />
+          ) : isConnected ? (
+            <Wifi size={20} />
+          ) : (
+            <WifiOff size={20} />
+          )}
+          {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Connect'}
         </button>
 
         {/* Connected Peers Display */}
