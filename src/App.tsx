@@ -50,6 +50,17 @@ export default function App() {
     prevConnectionsCount.current = connectionsCount;
   }, [connectionsCount]);
 
+  // Monitor room disconnection
+  const prevRoomRef = useRef(currentRoom);
+  useEffect(() => {
+    // If we had a room and now we don't, show disconnection message
+    if (prevRoomRef.current && !currentRoom) {
+      setConnectionStatus('🔌 Disconnected from room');
+      setTimeout(() => setConnectionStatus(null), 3000);
+    }
+    prevRoomRef.current = currentRoom;
+  }, [currentRoom]);
+
   useEffect(() => {
     if (!roomCode || hasJoinedRoom.current) return;
 
