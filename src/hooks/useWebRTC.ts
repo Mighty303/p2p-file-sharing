@@ -202,12 +202,25 @@ export function useWebRTC() {
                     // Google's free STUN servers (IPv6 support)
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' },
-                    { urls: 'stun:stun3.l.google.com:19302' },
-                    { urls: 'stun:stun4.l.google.com:19302' },
                     
-                    // Free TURN servers from Open Relay Project
-                    // These allow connections through firewalls
+                    // Metered TURN servers (more reliable than OpenRelay)
+                    {
+                        urls: 'turn:a.relay.metered.ca:80',
+                        username: 'e88a775049f89ee69ae55cf7',
+                        credential: 'dQhWKOH1rQqnBRhZ'
+                    },
+                    {
+                        urls: 'turn:a.relay.metered.ca:443',
+                        username: 'e88a775049f89ee69ae55cf7',
+                        credential: 'dQhWKOH1rQqnBRhZ'
+                    },
+                    {
+                        urls: 'turn:a.relay.metered.ca:443?transport=tcp',
+                        username: 'e88a775049f89ee69ae55cf7',
+                        credential: 'dQhWKOH1rQqnBRhZ'
+                    },
+                    
+                    // Backup: Open Relay TURN servers
                     {
                         urls: 'turn:openrelay.metered.ca:80',
                         username: 'openrelayproject',
@@ -217,19 +230,15 @@ export function useWebRTC() {
                         urls: 'turn:openrelay.metered.ca:443',
                         username: 'openrelayproject',
                         credential: 'openrelayproject'
-                    },
-                    {
-                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
                     }
                 ],
-                // Improve connection reliability and prioritize IPv6
+                // Improve connection reliability
                 iceCandidatePoolSize: 10,
                 iceTransportPolicy: 'all', // Allow both IPv4 and IPv6
-                // RTCConfiguration to prefer IPv6
                 bundlePolicy: 'max-bundle',
-                rtcpMuxPolicy: 'require'
+                rtcpMuxPolicy: 'require',
+                // Add timeout to prevent hanging
+                iceServersTimeout: 5000
             },
             // Enable debug logging (set to 0 in production)
             debug: 2
@@ -309,12 +318,32 @@ export function useWebRTC() {
             // Monitor ICE gathering state
             peerConnection.onicegatheringstatechange = () => {
                 console.log(`📊 ICE Gathering State (${conn.peer}):`, peerConnection.iceGatheringState);
+                
+                // Log when gathering completes
+                if (peerConnection.iceGatheringState === 'complete') {
+                    console.log('✅ ICE gathering completed for:', conn.peer);
+                }
             };
 
             // Monitor connection state
             peerConnection.onconnectionstatechange = () => {
                 console.log(`🔗 Connection State (${conn.peer}):`, peerConnection.connectionState);
+                
+                // Handle failed connections
+                if (peerConnection.connectionState === 'failed') {
+                    console.error('❌ Connection failed for:', conn.peer);
+                    conn.close();
+                }
             };
+
+            // Add timeout detection for stuck connections
+            setTimeout(() => {
+                if (peerConnection.iceConnectionState !== 'connected' && 
+                    peerConnection.iceConnectionState !== 'completed') {
+                    console.warn(`⏰ Connection timeout for ${conn.peer} - ICE state: ${peerConnection.iceConnectionState}`);
+                    // Don't close automatically, let user see what's happening
+                }
+            }, 15000); // 15 second timeout
         }
 
         conn.on('open', async () => {
@@ -385,12 +414,32 @@ export function useWebRTC() {
             // Monitor ICE gathering state
             peerConnection.onicegatheringstatechange = () => {
                 console.log(`📊 ICE Gathering State (${remotePeerId}):`, peerConnection.iceGatheringState);
+                
+                // Log when gathering completes
+                if (peerConnection.iceGatheringState === 'complete') {
+                    console.log('✅ ICE gathering completed for:', remotePeerId);
+                }
             };
 
             // Monitor connection state
             peerConnection.onconnectionstatechange = () => {
                 console.log(`🔗 Connection State (${remotePeerId}):`, peerConnection.connectionState);
+                
+                // Handle failed connections
+                if (peerConnection.connectionState === 'failed') {
+                    console.error('❌ Connection failed for:', remotePeerId);
+                    conn.close();
+                }
             };
+
+            // Add timeout detection for stuck connections
+            setTimeout(() => {
+                if (peerConnection.iceConnectionState !== 'connected' && 
+                    peerConnection.iceConnectionState !== 'completed') {
+                    console.warn(`⏰ Connection timeout for ${remotePeerId} - ICE state: ${peerConnection.iceConnectionState}`);
+                    // Don't close automatically, let user see what's happening
+                }
+            }, 15000); // 15 second timeout
         }
 
         conn.on('open', async () => {
