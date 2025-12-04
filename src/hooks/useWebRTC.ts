@@ -195,53 +195,25 @@ export function useWebRTC() {
     const connect = () => {
         if (peerInstance.current) return;
 
-        // Configure WebRTC with STUN and TURN servers
+        // Optimized P2P configuration - works without TURN in many cases
         const peer = new Peer({
             config: {
                 iceServers: [
-                    // Google's free STUN servers (IPv6 support)
+                    // Multiple STUN servers for better NAT discovery
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
-                    
-                    // Metered TURN servers (more reliable than OpenRelay)
-                    {
-                        urls: 'turn:a.relay.metered.ca:80',
-                        username: 'e88a775049f89ee69ae55cf7',
-                        credential: 'dQhWKOH1rQqnBRhZ'
-                    },
-                    {
-                        urls: 'turn:a.relay.metered.ca:443',
-                        username: 'e88a775049f89ee69ae55cf7',
-                        credential: 'dQhWKOH1rQqnBRhZ'
-                    },
-                    {
-                        urls: 'turn:a.relay.metered.ca:443?transport=tcp',
-                        username: 'e88a775049f89ee69ae55cf7',
-                        credential: 'dQhWKOH1rQqnBRhZ'
-                    },
-                    
-                    // Backup: Open Relay TURN servers
-                    {
-                        urls: 'turn:openrelay.metered.ca:80',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    {
-                        urls: 'turn:openrelay.metered.ca:443',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    }
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' },
                 ],
-                // Improve connection reliability
-                iceCandidatePoolSize: 10,
-                iceTransportPolicy: 'all', // Allow both IPv4 and IPv6
-                bundlePolicy: 'max-bundle',
-                rtcpMuxPolicy: 'require',
-                // Add timeout to prevent hanging
-                iceServersTimeout: 5000
+                // Optimize for maximum connection success
+                iceCandidatePoolSize: 10, // Pre-gather candidates
+                iceTransportPolicy: 'all', // Try all connection methods
+                bundlePolicy: 'max-bundle', // Bundle media for efficiency
+                rtcpMuxPolicy: 'require', // Multiplex RTP and RTCP
             },
-            // Enable debug logging (set to 0 in production)
-            debug: 2
+            // Reduce debug logging in production
+            debug: 1
         });
 
         peer.on('open', (id) => {
