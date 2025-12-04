@@ -300,10 +300,25 @@ export function useWebRTC() {
                     console.log(`🧊 ICE Candidate (${isIPv6 ? 'IPv6' : 'IPv4'}):`, candidate.substring(0, 50));
                 }
             };
+
+            // Monitor ICE connection state changes
+            peerConnection.oniceconnectionstatechange = () => {
+                console.log(`🔌 ICE Connection State (${conn.peer}):`, peerConnection.iceConnectionState);
+            };
+
+            // Monitor ICE gathering state
+            peerConnection.onicegatheringstatechange = () => {
+                console.log(`📊 ICE Gathering State (${conn.peer}):`, peerConnection.iceGatheringState);
+            };
+
+            // Monitor connection state
+            peerConnection.onconnectionstatechange = () => {
+                console.log(`🔗 Connection State (${conn.peer}):`, peerConnection.connectionState);
+            };
         }
 
         conn.on('open', async () => {
-            console.log('Connection opened with:', conn.peer);
+            console.log('✅ Connection opened with:', conn.peer);
             connections.current.set(conn.peer, conn);
             setConnectionsCount(connections.current.size);
             
@@ -361,10 +376,25 @@ export function useWebRTC() {
                     console.log(`🧊 ICE Candidate (${isIPv6 ? 'IPv6' : 'IPv4'}):`, candidate.substring(0, 50));
                 }
             };
+
+            // Monitor ICE connection state changes
+            peerConnection.oniceconnectionstatechange = () => {
+                console.log(`🔌 ICE Connection State (${remotePeerId}):`, peerConnection.iceConnectionState);
+            };
+
+            // Monitor ICE gathering state
+            peerConnection.onicegatheringstatechange = () => {
+                console.log(`📊 ICE Gathering State (${remotePeerId}):`, peerConnection.iceGatheringState);
+            };
+
+            // Monitor connection state
+            peerConnection.onconnectionstatechange = () => {
+                console.log(`🔗 Connection State (${remotePeerId}):`, peerConnection.connectionState);
+            };
         }
 
         conn.on('open', async () => {
-            console.log('Connected to peer:', remotePeerId);
+            console.log('✅ Connected to peer:', remotePeerId);
             connections.current.set(remotePeerId, conn);
             setConnectionsCount(connections.current.size);
 
