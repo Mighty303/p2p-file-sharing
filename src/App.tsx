@@ -5,7 +5,8 @@ import {
   ChatPanel,
   FilePanel,
   TabBar,
-  NotConnected
+  NotConnected,
+  NetworkDiagnostics
 } from './components';
 import type { Message } from './types';
 import { useWebRTC } from './hooks/useWebRTC';
@@ -217,7 +218,7 @@ export default function App() {
             connectedPeers={Array.from(connections.keys())}
           />          
           {isConnected && (
-            <div className="mt-4 pt-4 border-t border-slate-700/50">
+            <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-4">
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-slate-400">Your ID:</span>
                 <code className="bg-slate-900/50 px-3 py-1 rounded-lg text-purple-300 font-mono">
@@ -227,6 +228,8 @@ export default function App() {
                   <span className="text-slate-300">{connectionsCount} peers connected</span>
                 </div>
               </div>
+              
+              <NetworkDiagnostics />
             </div>
           )}
         </div>

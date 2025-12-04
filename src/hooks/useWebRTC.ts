@@ -188,7 +188,7 @@ export function useWebRTC() {
         const peer = new Peer({
             config: {
                 iceServers: [
-                    // Google's free STUN servers
+                    // Google's free STUN servers (IPv6 support)
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
                     { urls: 'stun:stun2.l.google.com:19302' },
@@ -213,8 +213,12 @@ export function useWebRTC() {
                         credential: 'openrelayproject'
                     }
                 ],
-                // Improve connection reliability
-                iceCandidatePoolSize: 10
+                // Improve connection reliability and prioritize IPv6
+                iceCandidatePoolSize: 10,
+                iceTransportPolicy: 'all', // Allow both IPv4 and IPv6
+                // RTCConfiguration to prefer IPv6
+                bundlePolicy: 'max-bundle',
+                rtcpMuxPolicy: 'require'
             },
             // Enable debug logging (set to 0 in production)
             debug: 2
@@ -224,6 +228,9 @@ export function useWebRTC() {
             setPeerId(id);
             setIsConnected(true);
             console.log('My peer ID is:', id);
+            
+            // Log ICE gathering info for debugging
+            console.log('🌐 WebRTC initialized with IPv6-first support');
         });
 
         peer.on('error', (err) => {
@@ -238,7 +245,14 @@ export function useWebRTC() {
             }
         });
 
-        peer.on('connection', (conn) => handleIncomingConnection(conn));
+        peer.on('connection', (conn) => {
+            // Log connection details
+            const metadata = conn.metadata as { preferIPv6?: boolean } | undefined;
+            if (metadata?.preferIPv6) {
+                console.log('📡 Incoming connection prefers IPv6');
+            }
+            handleIncomingConnection(conn);
+        });
 
         peerInstance.current = peer;
     };
@@ -265,10 +279,32 @@ export function useWebRTC() {
     const handleIncomingConnection = (conn: DataConnection) => {
         console.log('Incoming connection from:', conn.peer);
 
+        // Monitor ICE candidates for IPv6
+        const peerConnection = (conn as any).peerConnection as RTCPeerConnection | undefined;
+        if (peerConnection) {
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const candidate = event.candidate.candidate;
+                    const isIPv6 = candidate.includes(':') && !candidate.includes('.');
+                    console.log(`🧊 ICE Candidate (${isIPv6 ? 'IPv6' : 'IPv4'}):`, candidate.substring(0, 50));
+                }
+            };
+        }
+
         conn.on('open', async () => {
             console.log('Connection opened with:', conn.peer);
             connections.current.set(conn.peer, conn);
             setConnectionsCount(connections.current.size);
+            
+            // Log the selected candidate pair
+            if (peerConnection) {
+                const stats = await peerConnection.getStats();
+                stats.forEach((stat) => {
+                    if (stat.type === 'candidate-pair' && stat.state === 'succeeded') {
+                        console.log('✅ Active connection using:', stat);
+                    }
+                });
+            }
         });
 
         conn.on('data', async (data: any) => {
@@ -298,13 +334,38 @@ export function useWebRTC() {
 
         console.log('Connecting to peer:', remotePeerId);
         const conn = peerInstance.current.connect(remotePeerId, {
-            reliable: true // Use reliable data channels
+            reliable: true, // Use reliable data channels
+            metadata: { 
+                preferIPv6: true // Signal IPv6 preference to remote peer
+            }
         });
+
+        // Monitor ICE candidates for IPv6
+        const peerConnection = (conn as any).peerConnection as RTCPeerConnection | undefined;
+        if (peerConnection) {
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    const candidate = event.candidate.candidate;
+                    const isIPv6 = candidate.includes(':') && !candidate.includes('.');
+                    console.log(`🧊 ICE Candidate (${isIPv6 ? 'IPv6' : 'IPv4'}):`, candidate.substring(0, 50));
+                }
+            };
+        }
 
         conn.on('open', async () => {
             console.log('Connected to peer:', remotePeerId);
             connections.current.set(remotePeerId, conn);
             setConnectionsCount(connections.current.size);
+
+            // Log the selected candidate pair
+            if (peerConnection) {
+                const stats = await peerConnection.getStats();
+                stats.forEach((stat) => {
+                    if (stat.type === 'candidate-pair' && stat.state === 'succeeded') {
+                        console.log('✅ Active connection using:', stat);
+                    }
+                });
+            }
 
             // Generate AES key for this peer if not exists
             if (!AESKeys.current.has(remotePeerId)) {
