@@ -18,19 +18,7 @@ This application now prioritizes IPv6 connections for P2P communication, falling
   - ✅ Active connection using candidate pair stats
   - 🌐 WebRTC initialized message
 
-### 3. **Network Diagnostics Component**
-The `NetworkDiagnostics` component provides:
-- Real-time IPv6 availability detection
-- List of local IPv4 and IPv6 addresses
-- Visual distinction between address types
-- Loading states during detection
-- Color-coded status indicators:
-  - 🟢 Green for IPv6 addresses (preferred)
-  - 🔵 Blue for IPv4 addresses
-  - 🟡 Yellow during detection
-  - 🟠 Orange when IPv6 not available
-
-### 4. **Connection Metadata**
+### 3. **Connection Metadata**
 - Peer connections include `preferIPv6: true` metadata
 - Incoming connections log IPv6 preference
 - Helps identify peers that support IPv6

@@ -1,4 +1,5 @@
 import { MessageSquare, Send } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import type { Message } from '../types';
 
 interface ChatPanelProps {
@@ -16,6 +17,17 @@ export function ChatPanel({
   onSendMessage,
   onKeyPress
 }: ChatPanelProps) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevMessageCountRef = useRef(messages.length);
+
+  // Auto-scroll to bottom only when new messages are added
+  useEffect(() => {
+    if (messages.length > prevMessageCountRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages]);
+
   return (
     <div className="flex flex-col h-96">
       <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-2">
@@ -50,6 +62,7 @@ export function ChatPanel({
               </div>
             ))
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       <div className="flex gap-3">

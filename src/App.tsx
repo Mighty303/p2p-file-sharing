@@ -5,8 +5,7 @@ import {
   ChatPanel,
   FilePanel,
   TabBar,
-  NotConnected,
-  NetworkDiagnostics
+  NotConnected
 } from './components';
 import type { Message } from './types';
 import { useWebRTC } from './hooks/useWebRTC';
@@ -229,7 +228,6 @@ export default function App() {
                 </div>
               </div>
               
-              <NetworkDiagnostics />
             </div>
           )}
         </div>

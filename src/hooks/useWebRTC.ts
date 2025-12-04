@@ -38,12 +38,18 @@ export function useWebRTC() {
         onMessageRef.current = callback;
     };
 
+    const isPolling = useRef(false);
+
     // Poll for new room members
     const pollRoomMembers = async () => {
-        if (!currentRoom || !peerId) return;
+        if (!currentRoom || !peerId || isPolling.current) return;
+        
+        isPolling.current = true;
         
         try {
-            const response = await fetch(`${ROOM_SERVER_URL}/room/${currentRoom}/peers`);
+            const response = await fetch(`${ROOM_SERVER_URL}/room/${currentRoom}/peers`, {
+                signal: AbortSignal.timeout(5000) // 5 second timeout
+            });
             if (!response.ok) return;
             
             const data = await response.json();
@@ -56,7 +62,12 @@ export function useWebRTC() {
                 }
             }
         } catch (err) {
-            console.error('Failed to poll room members:', err);
+            // Silently ignore timeout errors to avoid console spam
+            if (err instanceof Error && err.name !== 'TimeoutError') {
+                console.error('Failed to poll room members:', err);
+            }
+        } finally {
+            isPolling.current = false;
         }
     };
 
@@ -111,8 +122,8 @@ export function useWebRTC() {
                 }
             }
             
-            // Start polling for new members every 3 seconds
-            pollInterval.current = window.setInterval(pollRoomMembers, 3000);
+            // Start polling for new members every 10 seconds
+            pollInterval.current = window.setInterval(pollRoomMembers, 10000);
         } catch (err) {
             console.error('Failed to join room:', err);
             throw err;
