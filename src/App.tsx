@@ -39,6 +39,16 @@ export default function App() {
 
     // auto-connect + auto-join QR room
     const hasJoinedRoom = useRef(false);
+    const prevConnectionsCount = useRef(0);
+
+  // Auto-switch to chat when a peer joins
+  useEffect(() => {
+    if (connectionsCount > prevConnectionsCount.current && connectionsCount > 0) {
+      // A new peer connected
+      setActiveTab('chat');
+    }
+    prevConnectionsCount.current = connectionsCount;
+  }, [connectionsCount]);
 
   useEffect(() => {
     if (!roomCode || hasJoinedRoom.current) return;
