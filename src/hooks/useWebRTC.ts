@@ -15,6 +15,8 @@ type QueuedFile = {
 }
 
 const ROOM_SERVER_URL = import.meta.env.VITE_ROOM_SERVER_URL || 'http://localhost:3001';
+const TWILIO_SID = import.meta.env.VITE_TWILIO_SID;
+const TWILIO_SECRET = import.meta.env.VITE_TWILIO_SECRET;
 
 export function useWebRTC() {
     const [peerId, setPeerId] = useState('');
@@ -122,8 +124,8 @@ export function useWebRTC() {
                 }
             }
             
-            // Start polling for new members every 10 seconds
-            pollInterval.current = window.setInterval(pollRoomMembers, 10000);
+            // Start polling for new members every 3 seconds
+            pollInterval.current = window.setInterval(pollRoomMembers, 3000);
         } catch (err) {
             console.error('Failed to join room:', err);
             throw err;
@@ -203,26 +205,25 @@ export function useWebRTC() {
             secure: new URL(ROOM_SERVER_URL).protocol === 'https:',
             config: {
                 iceServers: [
-                    // STUN servers for NAT discovery
+                    // Google STUN servers for NAT discovery
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' },
                     
-                    // Metered TURN servers (free tier)
+                    // Twilio TURN servers (enterprise-grade reliability)
                     {
-                        urls: 'turn:a.relay.metered.ca:80',
-                        username: 'e88a775049f89ee69ae55cf7',
-                        credential: 'dQhWKOH1rQqnBRhZ'
+                        urls: 'turn:global.turn.twilio.com:3478?transport=udp',
+                        username: TWILIO_SID,
+                        credential: TWILIO_SECRET
                     },
                     {
-                        urls: 'turn:a.relay.metered.ca:443',
-                        username: 'e88a775049f89ee69ae55cf7',
-                        credential: 'dQhWKOH1rQqnBRhZ'
+                        urls: 'turn:global.turn.twilio.com:3478?transport=tcp',
+                        username: TWILIO_SID,
+                        credential: TWILIO_SECRET
                     },
                     {
-                        urls: 'turn:a.relay.metered.ca:443?transport=tcp',
-                        username: 'e88a775049f89ee69ae55cf7',
-                        credential: 'dQhWKOH1rQqnBRhZ'
+                        urls: 'turn:global.turn.twilio.com:443?transport=tcp',
+                        username: TWILIO_SID,
+                        credential: TWILIO_SECRET
                     },
                 ],
                 // Optimize for maximum connection success
