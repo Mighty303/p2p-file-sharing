@@ -53,12 +53,17 @@ export function useWebRTC() {
             if (!response.ok) return;
             
             const data = await response.json();
+            console.log(`🔍 Polling room ${currentRoom}: Found ${data.peers.length} peers:`, data.peers);
             
             // Connect to any peers we're not already connected to
             for (const peer of data.peers) {
                 if (peer !== peerId && !connections.current.has(peer)) {
-                    console.log('Discovered new peer in room:', peer);
+                    console.log('🆕 Discovered new peer in room:', peer);
                     connectToPeer(peer);
+                } else if (peer === peerId) {
+                    console.log('👤 Found myself in room');
+                } else {
+                    console.log('✓ Already connected to:', peer);
                 }
             }
         } catch (err) {
@@ -417,14 +422,14 @@ export function useWebRTC() {
             return;
         }
 
-        // Prevent simultaneous connection attempts: only initiate if our ID is "greater"
-        // The other peer will initiate the connection instead
+        // Prevent simultaneous connection attempts: only initiate if our ID is "smaller"
+        // The peer with the higher ID will initiate the connection instead
         if (peerId > remotePeerId) {
             console.log(`⏭️  Skipping connection to ${remotePeerId} (they will connect to us)`);
             return;
         }
 
-        console.log('Connecting to peer:', remotePeerId);
+        console.log('🔗 Initiating connection to peer:', remotePeerId);
         const conn = peerInstance.current.connect(remotePeerId, {
             reliable: true, // Use reliable data channels
             serialization: 'json', // Explicit serialization
