@@ -234,7 +234,7 @@ export function useWebRTC() {
         const peer = new Peer({
             host: SIGNALING_SERVER,
             port: 443,
-            path: '/peerjs',  // Match backend mount point
+            path: '/',  // Must match ExpressPeerServer path config (not mount point)
             secure: true,
             config: {
                 iceServers,
@@ -422,13 +422,7 @@ export function useWebRTC() {
             return;
         }
 
-        // Prevent simultaneous connection attempts: only initiate if our ID is "smaller"
-        // The peer with the higher ID will initiate the connection instead
-        if (peerId > remotePeerId) {
-            console.log(`⏭️  Skipping connection to ${remotePeerId} (they will connect to us)`);
-            return;
-        }
-
+        // PeerJS handles duplicate connections automatically, no need for manual prevention
         console.log('🔗 Initiating connection to peer:', remotePeerId);
         const conn = peerInstance.current.connect(remotePeerId, {
             reliable: true, // Use reliable data channels
