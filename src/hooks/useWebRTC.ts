@@ -234,7 +234,7 @@ export function useWebRTC() {
         const peer = new Peer({
             host: SIGNALING_SERVER,
             port: 443,
-            path: '/',  // Must match ExpressPeerServer path config (not mount point)
+            path: '/peerjs',
             secure: true,
             config: {
                 iceServers,
