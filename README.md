@@ -53,13 +53,89 @@ npm run dev
 
 5. Open your browser to `http://localhost:5173`
 
-## 🖥️ Backend Server
+## 🖥️ Backend Services
 
-The application requires a signaling server for room management. The backend is maintained in a separate repository:
+The application requires two backend services:
 
-**Backend Repository**: [p2p-file-sharing-backend](https://github.com/Mighty303/p2p-file-sharing-backend)
+### 1. Room Management Server
 
-The server handles room creation, peer discovery, and coordination. Set the backend URL in your `.env` file to connect to your deployed instance.
+Handles room creation, peer discovery, and TURN credential management.
+
+**Repository**: [p2p-file-sharing-backend](https://github.com/Mighty303/p2p-file-sharing-backend)
+
+**Features**:
+- Room creation and peer coordination
+- Twilio TURN server integration
+- Peer notification system
+- Health checks for cold start detection
+
+Set the backend URL in your `.env` file:
+```env
+VITE_ROOM_SERVER_URL=https://your-backend-url.com
+```
+
+### 2. PeerJS Signaling Server
+
+Handles WebRTC signaling and peer-to-peer connection establishment.
+
+**Repository**: [p2p-signaling-server](https://github.com/Mighty303/p2p-signaling-server)
+
+**Features**:
+- WebRTC signaling coordination
+- Peer connection/disconnection tracking
+- Health check endpoint
+- CORS enabled for cross-origin requests
+
+**Quick Setup**:
+```javascript
+const express = require('express');
+const { ExpressPeerServer } = require('peer');
+const cors = require('cors');
+const http = require('http');
+
+const app = express();
+const server = http.createServer(app);
+
+app.use(cors());
+
+// Health check endpoints
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    service: 'PeerJS Signaling Server',
+    uptime: process.uptime() 
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// PeerJS server configuration
+const peerServer = ExpressPeerServer(server, {
+  path: '/',
+  debug: true,
+  allow_discovery: true
+});
+
+app.use('/peerjs', peerServer);
+
+peerServer.on('connection', (client) => {
+  console.log(`🔗 Peer connected: ${client.getId()}`);
+});
+
+peerServer.on('disconnect', (client) => {
+  console.log(`❌ Peer disconnected: ${client.getId()}`);
+});
+
+const PORT = process.env.PORT || 9000;
+server.listen(PORT, () => {
+  console.log(`🚀 PeerJS Signaling Server on port ${PORT}`);
+  console.log(`📡 Endpoint: /peerjs`);
+});
+```
+
+**Deployment**: Deploy to any Node.js hosting service (Render, Heroku, Railway, etc.)
 
 ## 📖 Usage
 
