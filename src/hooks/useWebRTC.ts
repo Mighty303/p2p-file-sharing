@@ -360,12 +360,17 @@ export function useWebRTC() {
                 }
             };
 
-            // Add timeout detection for stuck connections
+            // Add timeout detection for stuck connections with ICE restart
             setTimeout(() => {
                 if (peerConnection.iceConnectionState !== 'connected' && 
                     peerConnection.iceConnectionState !== 'completed') {
                     console.warn(`⏰ Connection timeout for ${conn.peer} - ICE state: ${peerConnection.iceConnectionState}`);
-                    // Don't close automatically, let user see what's happening
+                    
+                    // Try ICE restart if stuck at "new"
+                    if (peerConnection.iceConnectionState === 'new') {
+                        console.log('🔄 Attempting ICE restart...');
+                        peerConnection.restartIce();
+                    }
                 }
             }, 15000); // 15 second timeout
         }
@@ -408,6 +413,13 @@ export function useWebRTC() {
         if (!peerInstance.current) return;
         if (connections.current.has(remotePeerId)) {
             console.log('Already connected to', remotePeerId);
+            return;
+        }
+
+        // Prevent simultaneous connection attempts: only initiate if our ID is "greater"
+        // The other peer will initiate the connection instead
+        if (peerId > remotePeerId) {
+            console.log(`⏭️  Skipping connection to ${remotePeerId} (they will connect to us)`);
             return;
         }
 
