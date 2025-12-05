@@ -76,6 +76,28 @@ export function useWebRTC() {
         }
     };
 
+    // Add to useWebRTC
+    const notificationPollInterval = useRef<number | null>(null);
+
+    // In createRoom and joinRoomByCode, start notification polling
+    const startNotificationPolling = () => {
+        notificationPollInterval.current = window.setInterval(async () => {
+            try {
+                const response = await fetch(`${ROOM_SERVER_URL}/notifications/${peerId}`);
+                const data = await response.json();
+                
+                for (const notification of data.notifications) {
+                    if (notification.type === 'peer_joined') {
+                        console.log('🔔 Notification: Peer joined:', notification.peerId);
+                        connectToPeer(notification.peerId);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch notifications:', err);
+            }
+        }, 1000); // Poll every second
+    };
+
     const createRoom = async (): Promise<string> => {
         const roomCode = generateRoomCode();
         
@@ -97,8 +119,11 @@ export function useWebRTC() {
                 connectToPeer(peer);
             }
             
+            // Start notification polling for instant peer discovery
+            startNotificationPolling();
+            
             // Start aggressive polling (every 1 second) for the first 30 seconds
-            // This catches joiners quickly
+            // This catches joiners quickly (fallback if notifications fail)
             let pollCount = 0;
             const aggressivePoll = setInterval(async () => {
                 await pollRoomMembers();
@@ -143,8 +168,11 @@ export function useWebRTC() {
                 }
             }
             
+            // Start notification polling for instant peer discovery
+            startNotificationPolling();
+            
             // Start aggressive polling (every 500ms) for the first 15 seconds
-            // This makes existing peers discover the new joiner faster
+            // This makes existing peers discover the new joiner faster (fallback if notifications fail)
             let pollCount = 0;
             const aggressivePoll = setInterval(async () => {
                 await pollRoomMembers();
@@ -169,6 +197,12 @@ export function useWebRTC() {
         if (pollInterval.current) {
             clearInterval(pollInterval.current);
             pollInterval.current = null;
+        }
+        
+        // Stop notification polling
+        if (notificationPollInterval.current) {
+            clearInterval(notificationPollInterval.current);
+            notificationPollInterval.current = null;
         }
         
         try {
@@ -315,6 +349,12 @@ export function useWebRTC() {
         if (pollInterval.current) {
             clearInterval(pollInterval.current);
             pollInterval.current = null;
+        }
+        
+        // Stop notification polling
+        if (notificationPollInterval.current) {
+            clearInterval(notificationPollInterval.current);
+            notificationPollInterval.current = null;
         }
         
         peerInstance.current.destroy();
