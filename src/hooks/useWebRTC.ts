@@ -223,17 +223,18 @@ export function useWebRTC() {
             console.log('📡 Falling back to STUN-only mode');
         }
 
-        // Connect to your own PeerJS server with dynamic TURN configuration
+        // Use PeerJS cloud server for signaling with Twilio TURN for connectivity
+        console.log('🌩️  Connecting to PeerJS cloud server for signaling...');
         const peer = new Peer({
-            host: new URL(ROOM_SERVER_URL).hostname,
-            port: new URL(ROOM_SERVER_URL).protocol === 'https:' ? 443 : 80,
-            path: '/peerjs',
-            secure: new URL(ROOM_SERVER_URL).protocol === 'https:',
+            host: '0.peerjs.com',
+            port: 443,
+            path: '/',
+            secure: true,
             config: {
                 iceServers,
                 // Optimize for maximum connection success
                 iceCandidatePoolSize: 10,
-                iceTransportPolicy: 'all',
+                iceTransportPolicy: 'all',  // Use all connection types (host, srflx, relay)
                 bundlePolicy: 'max-bundle',
                 rtcpMuxPolicy: 'require',
             },
@@ -316,11 +317,23 @@ export function useWebRTC() {
 
             // Monitor ICE connection state changes
             peerConnection.oniceconnectionstatechange = () => {
-                console.log(`🔌 ICE Connection State (${conn.peer}):`, peerConnection.iceConnectionState);
+                const state = peerConnection.iceConnectionState;
+                console.log(`🔌 ICE Connection State (${conn.peer}):`, state);
                 
-                // Log failed state with details
-                if (peerConnection.iceConnectionState === 'failed') {
-                    console.error(`❌ ICE Connection FAILED for ${conn.peer} - TURN servers may not be working`);
+                // Detailed state logging
+                if (state === 'checking') {
+                    console.log('🔍 Checking ICE candidates...');
+                } else if (state === 'connected') {
+                    console.log('✅ ICE Connected!');
+                } else if (state === 'completed') {
+                    console.log('✅ ICE Completed!');
+                } else if (state === 'failed') {
+                    console.error(`❌ ICE Connection FAILED for ${conn.peer}`);
+                    console.error('Possible reasons: Firewall blocking, NAT traversal failed, invalid TURN credentials');
+                } else if (state === 'disconnected') {
+                    console.warn(`⚠️  ICE Disconnected from ${conn.peer}`);
+                } else if (state === 'closed') {
+                    console.log(`🚪 ICE Connection closed for ${conn.peer}`);
                 }
             };
 
@@ -331,6 +344,8 @@ export function useWebRTC() {
                 // Log when gathering completes
                 if (peerConnection.iceGatheringState === 'complete') {
                     console.log('✅ ICE gathering completed for:', conn.peer);
+                    console.log('📋 Signaling State:', peerConnection.signalingState);
+                    console.log('🔌 ICE Connection State:', peerConnection.iceConnectionState);
                 }
             };
 
@@ -424,11 +439,23 @@ export function useWebRTC() {
 
             // Monitor ICE connection state changes
             peerConnection.oniceconnectionstatechange = () => {
-                console.log(`🔌 ICE Connection State (${remotePeerId}):`, peerConnection.iceConnectionState);
+                const state = peerConnection.iceConnectionState;
+                console.log(`🔌 ICE Connection State (${remotePeerId}):`, state);
                 
-                // Log failed state with details
-                if (peerConnection.iceConnectionState === 'failed') {
-                    console.error(`❌ ICE Connection FAILED for ${remotePeerId} - TURN servers may not be working`);
+                // Detailed state logging
+                if (state === 'checking') {
+                    console.log('🔍 Checking ICE candidates...');
+                } else if (state === 'connected') {
+                    console.log('✅ ICE Connected!');
+                } else if (state === 'completed') {
+                    console.log('✅ ICE Completed!');
+                } else if (state === 'failed') {
+                    console.error(`❌ ICE Connection FAILED for ${remotePeerId}`);
+                    console.error('Possible reasons: Firewall blocking, NAT traversal failed, invalid TURN credentials');
+                } else if (state === 'disconnected') {
+                    console.warn(`⚠️  ICE Disconnected from ${remotePeerId}`);
+                } else if (state === 'closed') {
+                    console.log(`🚪 ICE Connection closed for ${remotePeerId}`);
                 }
             };
 
@@ -439,6 +466,8 @@ export function useWebRTC() {
                 // Log when gathering completes
                 if (peerConnection.iceGatheringState === 'complete') {
                     console.log('✅ ICE gathering completed for:', remotePeerId);
+                    console.log('📋 Signaling State:', peerConnection.signalingState);
+                    console.log('🔌 ICE Connection State:', peerConnection.iceConnectionState);
                 }
             };
 
