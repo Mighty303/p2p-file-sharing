@@ -370,104 +370,12 @@ export function useWebRTC() {
     };
 
     const handleIncomingConnection = (conn: DataConnection) => {
-        console.log('Incoming connection from:', conn.peer);
-
-        // Monitor ICE candidates for IPv6
-        const peerConnection = (conn as any).peerConnection as RTCPeerConnection | undefined;
-        if (peerConnection) {
-            // Log remote description to verify it's being set
-            console.log('🔍 Remote description:', peerConnection.remoteDescription?.type || 'none');
-            console.log('🔍 Local description:', peerConnection.localDescription?.type || 'none');
-            
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    const candidate = event.candidate.candidate;
-                    const type = event.candidate.type; // host, srflx, relay
-                    const isIPv6 = candidate.includes(':') && !candidate.includes('.');
-                    
-                    // Highlight relay (TURN) candidates
-                    if (type === 'relay') {
-                        console.log(`🎯 ICE Candidate (RELAY/TURN):`, candidate.substring(0, 80));
-                    } else {
-                        console.log(`🧊 ICE Candidate (${type || (isIPv6 ? 'IPv6' : 'IPv4')}):`, candidate.substring(0, 50));
-                    }
-                }
-            };
-
-            // Monitor ICE connection state changes
-            peerConnection.oniceconnectionstatechange = () => {
-                const state = peerConnection.iceConnectionState;
-                console.log(`🔌 ICE Connection State (${conn.peer}):`, state);
-                
-                // Detailed state logging
-                if (state === 'checking') {
-                    console.log('🔍 Checking ICE candidates...');
-                } else if (state === 'connected') {
-                    console.log('✅ ICE Connected!');
-                } else if (state === 'completed') {
-                    console.log('✅ ICE Completed!');
-                } else if (state === 'failed') {
-                    console.error(`❌ ICE Connection FAILED for ${conn.peer}`);
-                    console.error('Possible reasons: Firewall blocking, NAT traversal failed, invalid TURN credentials');
-                } else if (state === 'disconnected') {
-                    console.warn(`⚠️  ICE Disconnected from ${conn.peer}`);
-                } else if (state === 'closed') {
-                    console.log(`🚪 ICE Connection closed for ${conn.peer}`);
-                }
-            };
-
-            // Monitor ICE gathering state
-            peerConnection.onicegatheringstatechange = () => {
-                console.log(`📊 ICE Gathering State (${conn.peer}):`, peerConnection.iceGatheringState);
-                
-                // Log when gathering completes
-                if (peerConnection.iceGatheringState === 'complete') {
-                    console.log('✅ ICE gathering completed for:', conn.peer);
-                    console.log('📋 Signaling State:', peerConnection.signalingState);
-                    console.log('🔌 ICE Connection State:', peerConnection.iceConnectionState);
-                }
-            };
-
-            // Monitor connection state
-            peerConnection.onconnectionstatechange = () => {
-                console.log(`🔗 Connection State (${conn.peer}):`, peerConnection.connectionState);
-                
-                // Handle failed connections
-                if (peerConnection.connectionState === 'failed') {
-                    console.error('❌ Connection failed for:', conn.peer);
-                    conn.close();
-                }
-            };
-
-            // Add timeout detection for stuck connections with ICE restart
-            setTimeout(() => {
-                if (peerConnection.iceConnectionState !== 'connected' && 
-                    peerConnection.iceConnectionState !== 'completed') {
-                    console.warn(`⏰ Connection timeout for ${conn.peer} - ICE state: ${peerConnection.iceConnectionState}`);
-                    
-                    // Try ICE restart if stuck at "new"
-                    if (peerConnection.iceConnectionState === 'new') {
-                        console.log('🔄 Attempting ICE restart...');
-                        peerConnection.restartIce();
-                    }
-                }
-            }, 15000); // 15 second timeout
-        }
+        console.log('� Incoming connection from:', conn.peer);
 
         conn.on('open', async () => {
             console.log('✅ Connection opened with:', conn.peer);
             connections.current.set(conn.peer, conn);
             setConnectionsCount(connections.current.size);
-            
-            // Log the selected candidate pair
-            if (peerConnection) {
-                const stats = await peerConnection.getStats();
-                stats.forEach((stat) => {
-                    if (stat.type === 'candidate-pair' && stat.state === 'succeeded') {
-                        console.log('✅ Active connection using:', stat);
-                    }
-                });
-            }
         });
 
         conn.on('data', async (data: any) => {
@@ -498,100 +406,14 @@ export function useWebRTC() {
         // PeerJS handles duplicate connections automatically, no need for manual prevention
         console.log('🔗 Initiating connection to peer:', remotePeerId);
         const conn = peerInstance.current.connect(remotePeerId, {
-            reliable: true, // Use reliable data channels
-            serialization: 'json', // Explicit serialization
-            metadata: { 
-                preferIPv6: true // Signal IPv6 preference to remote peer
-            }
+            reliable: true,
+            serialization: 'json'
         });
-
-        // Monitor ICE candidates for IPv6
-        const peerConnection = (conn as any).peerConnection as RTCPeerConnection | undefined;
-        if (peerConnection) {
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    const candidate = event.candidate.candidate;
-                    const type = event.candidate.type; // host, srflx, relay
-                    const isIPv6 = candidate.includes(':') && !candidate.includes('.');
-                    
-                    // Highlight relay (TURN) candidates
-                    if (type === 'relay') {
-                        console.log(`🎯 ICE Candidate (RELAY/TURN):`, candidate.substring(0, 80));
-                    } else {
-                        console.log(`🧊 ICE Candidate (${type || (isIPv6 ? 'IPv6' : 'IPv4')}):`, candidate.substring(0, 50));
-                    }
-                }
-            };
-
-            // Monitor ICE connection state changes
-            peerConnection.oniceconnectionstatechange = () => {
-                const state = peerConnection.iceConnectionState;
-                console.log(`🔌 ICE Connection State (${remotePeerId}):`, state);
-                
-                // Detailed state logging
-                if (state === 'checking') {
-                    console.log('🔍 Checking ICE candidates...');
-                } else if (state === 'connected') {
-                    console.log('✅ ICE Connected!');
-                } else if (state === 'completed') {
-                    console.log('✅ ICE Completed!');
-                } else if (state === 'failed') {
-                    console.error(`❌ ICE Connection FAILED for ${remotePeerId}`);
-                    console.error('Possible reasons: Firewall blocking, NAT traversal failed, invalid TURN credentials');
-                } else if (state === 'disconnected') {
-                    console.warn(`⚠️  ICE Disconnected from ${remotePeerId}`);
-                } else if (state === 'closed') {
-                    console.log(`🚪 ICE Connection closed for ${remotePeerId}`);
-                }
-            };
-
-            // Monitor ICE gathering state
-            peerConnection.onicegatheringstatechange = () => {
-                console.log(`📊 ICE Gathering State (${remotePeerId}):`, peerConnection.iceGatheringState);
-                
-                // Log when gathering completes
-                if (peerConnection.iceGatheringState === 'complete') {
-                    console.log('✅ ICE gathering completed for:', remotePeerId);
-                    console.log('📋 Signaling State:', peerConnection.signalingState);
-                    console.log('🔌 ICE Connection State:', peerConnection.iceConnectionState);
-                }
-            };
-
-            // Monitor connection state
-            peerConnection.onconnectionstatechange = () => {
-                console.log(`🔗 Connection State (${remotePeerId}):`, peerConnection.connectionState);
-                
-                // Handle failed connections
-                if (peerConnection.connectionState === 'failed') {
-                    console.error('❌ Connection failed for:', remotePeerId);
-                    conn.close();
-                }
-            };
-
-            // Add timeout detection for stuck connections
-            setTimeout(() => {
-                if (peerConnection.iceConnectionState !== 'connected' && 
-                    peerConnection.iceConnectionState !== 'completed') {
-                    console.warn(`⏰ Connection timeout for ${remotePeerId} - ICE state: ${peerConnection.iceConnectionState}`);
-                    // Don't close automatically, let user see what's happening
-                }
-            }, 15000); // 15 second timeout
-        }
 
         conn.on('open', async () => {
             console.log('✅ Connected to peer:', remotePeerId);
             connections.current.set(remotePeerId, conn);
             setConnectionsCount(connections.current.size);
-
-            // Log the selected candidate pair
-            if (peerConnection) {
-                const stats = await peerConnection.getStats();
-                stats.forEach((stat) => {
-                    if (stat.type === 'candidate-pair' && stat.state === 'succeeded') {
-                        console.log('✅ Active connection using:', stat);
-                    }
-                });
-            }
 
             // Generate AES key for this peer if not exists
             if (!AESKeys.current.has(remotePeerId)) {
