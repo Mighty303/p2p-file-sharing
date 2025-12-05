@@ -20,7 +20,8 @@ export default function App() {
   // WebRTC hook
   const { 
     peerId, 
-    isConnected, 
+    isConnected,
+    isConnecting,
     connect, 
     disconnect, 
     sendMessage, 
@@ -234,6 +235,7 @@ export default function App() {
         <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl shadow-2xl border border-slate-700/50 mb-6 p-6">
           <Header
             isConnected={isConnected}
+            isConnecting={isConnecting}
             onConnect={handleConnect}
             connectedPeers={Array.from(connections.keys())}
           />          

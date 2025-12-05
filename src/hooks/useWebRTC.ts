@@ -20,6 +20,7 @@ export function useWebRTC() {
     const [peerId, setPeerId] = useState('');
     const [connectionsCount, setConnectionsCount] = useState(0);
     const [isConnected, setIsConnected] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
     const peerInstance = useRef<Peer | null>(null);
     const connections = useRef<Map<string, DataConnection>>(new Map());
     const onMessageRef = useRef<((msg: any) => void) | null>(null);
@@ -39,6 +40,34 @@ export function useWebRTC() {
     };
 
     const isPolling = useRef(false);
+
+    // Check server health (for cold start detection)
+    const checkServerHealth = async (): Promise<{ room: boolean; signaling: boolean }> => {
+        const results = { room: false, signaling: false };
+        
+        // Check room server
+        try {
+            const roomResponse = await fetch(`${ROOM_SERVER_URL}/health`, { 
+                signal: AbortSignal.timeout(3000) 
+            });
+            results.room = roomResponse.ok;
+        } catch (err) {
+            console.log('Room server not ready yet...');
+        }
+
+        // Check signaling server
+        try {
+            const SIGNALING_SERVER = 'p2p-signaling-server-i99a.onrender.com';
+            const signalingResponse = await fetch(`https://${SIGNALING_SERVER}/health`, { 
+                signal: AbortSignal.timeout(3000) 
+            });
+            results.signaling = signalingResponse.ok;
+        } catch (err) {
+            console.log('Signaling server not ready yet...');
+        }
+
+        return results;
+    };
 
     // Poll for new room members
     const pollRoomMembers = async () => {
@@ -261,6 +290,31 @@ export function useWebRTC() {
     const connect = async () => {
         if (peerInstance.current) return;
 
+        setIsConnecting(true);
+
+        // Wait for servers to be ready (handle cold start)
+        console.log('🔍 Checking server health...');
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        while (attempts < maxAttempts) {
+            const health = await checkServerHealth();
+            
+            if (health.room && health.signaling) {
+                console.log('✅ Both servers are ready!');
+                break;
+            }
+            
+            console.log(`⏳ Waiting for servers... (${attempts + 1}/${maxAttempts})`);
+            if (!health.room) console.log('   - Room server still starting...');
+            if (!health.signaling) console.log('   - Signaling server still starting...');
+            
+            attempts++;
+            if (attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s between attempts
+            }
+        }
+
         // Fetch TURN credentials from backend
         let iceServers = [
             // Default STUN servers
@@ -314,6 +368,7 @@ export function useWebRTC() {
         peer.on('open', (id) => {
             setPeerId(id);
             setIsConnected(true);
+            setIsConnecting(false);
             console.log('My peer ID is:', id);
             
             // Log ICE gathering info for debugging
@@ -322,6 +377,7 @@ export function useWebRTC() {
 
         peer.on('error', (err) => {
             console.error('Peer error:', err);
+            setIsConnecting(false);
             // Handle specific error types
             if (err.type === 'network') {
                 console.error('Network error - check your internet connection');
@@ -587,7 +643,8 @@ export function useWebRTC() {
 
     return { 
         peerId, 
-        isConnected, 
+        isConnected,
+        isConnecting,
         connect, 
         disconnect, 
         connectToPeer, 

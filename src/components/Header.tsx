@@ -1,29 +1,15 @@
 import { Wifi, WifiOff, Users, Loader2 } from 'lucide-react';
-import { useState } from 'react';
 
 interface HeaderProps {
   isConnected: boolean;
+  isConnecting: boolean;
   onConnect: () => void;
   connectedPeers: string[];
 }
 
-export function Header({ isConnected, onConnect, connectedPeers }: HeaderProps) {
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const handleConnect = async () => {
-    if (isConnected) {
-      onConnect();
-      return;
-    }
-    
-    setIsConnecting(true);
-    try {
-      await onConnect();
-      // Wait a bit for connection to establish
-      setTimeout(() => setIsConnecting(false), 1000);
-    } catch (err) {
-      setIsConnecting(false);
-    }
+export function Header({ isConnected, isConnecting, onConnect, connectedPeers }: HeaderProps) {
+  const handleConnect = () => {
+    onConnect();
   };
 
   return (
