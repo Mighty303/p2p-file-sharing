@@ -195,14 +195,12 @@ export function useWebRTC() {
     const connect = () => {
         if (peerInstance.current) return;
 
-        // Use your own PeerJS server + optimized TURN configuration
+        // Connect to your own PeerJS server with TURN configuration
         const peer = new Peer({
-            // Connect to YOUR signaling server
             host: new URL(ROOM_SERVER_URL).hostname,
             port: new URL(ROOM_SERVER_URL).protocol === 'https:' ? 443 : 80,
-            path: '/',
             secure: new URL(ROOM_SERVER_URL).protocol === 'https:',
-            
+            // No custom path - PeerJS server handles its own routing
             config: {
                 iceServers: [
                     // STUN servers for NAT discovery
