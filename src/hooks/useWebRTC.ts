@@ -223,10 +223,11 @@ export function useWebRTC() {
             console.log('📡 Falling back to STUN-only mode');
         }
 
-        // Use PeerJS cloud server for signaling with Twilio TURN for connectivity
-        console.log('🌩️  Connecting to PeerJS cloud server for signaling...');
+        // Use dedicated PeerJS signaling server
+        console.log('🔧 Connecting to PeerJS signaling server...');
+        const SIGNALING_SERVER = 'p2p-signaling-server-i99a.onrender.com';
         const peer = new Peer({
-            host: '0.peerjs.com',
+            host: SIGNALING_SERVER,
             port: 443,
             path: '/',
             secure: true,
@@ -426,6 +427,7 @@ export function useWebRTC() {
         console.log('Connecting to peer:', remotePeerId);
         const conn = peerInstance.current.connect(remotePeerId, {
             reliable: true, // Use reliable data channels
+            serialization: 'json', // Explicit serialization
             metadata: { 
                 preferIPv6: true // Signal IPv6 preference to remote peer
             }
