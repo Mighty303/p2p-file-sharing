@@ -200,7 +200,7 @@ export function useWebRTC() {
             // Connect to YOUR signaling server
             host: new URL(ROOM_SERVER_URL).hostname,
             port: new URL(ROOM_SERVER_URL).protocol === 'https:' ? 443 : 80,
-            path: '/peerjs',
+            path: '/',
             secure: new URL(ROOM_SERVER_URL).protocol === 'https:',
             
             config: {
