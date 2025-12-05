@@ -301,9 +301,11 @@ export function useWebRTC() {
                 iceServers,
                 // Optimize for maximum connection success
                 iceCandidatePoolSize: 10,
-                iceTransportPolicy: 'all',  // Use all connection types (host, srflx, relay)
+                iceTransportPolicy: 'all',
                 bundlePolicy: 'max-bundle',
                 rtcpMuxPolicy: 'require',
+                // Force ICE restart on connection failure
+                iceRestart: true
             },
             // Debug logging
             debug: 2
@@ -373,6 +375,10 @@ export function useWebRTC() {
         // Monitor ICE candidates for IPv6
         const peerConnection = (conn as any).peerConnection as RTCPeerConnection | undefined;
         if (peerConnection) {
+            // Log remote description to verify it's being set
+            console.log('🔍 Remote description:', peerConnection.remoteDescription?.type || 'none');
+            console.log('🔍 Local description:', peerConnection.localDescription?.type || 'none');
+            
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
                     const candidate = event.candidate.candidate;
