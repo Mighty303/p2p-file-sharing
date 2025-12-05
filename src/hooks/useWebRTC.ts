@@ -195,25 +195,46 @@ export function useWebRTC() {
     const connect = () => {
         if (peerInstance.current) return;
 
-        // Optimized P2P configuration - works without TURN in many cases
+        // Use your own PeerJS server + optimized TURN configuration
         const peer = new Peer({
+            // Connect to YOUR signaling server
+            host: new URL(ROOM_SERVER_URL).hostname,
+            port: new URL(ROOM_SERVER_URL).protocol === 'https:' ? 443 : 80,
+            path: '/peerjs',
+            secure: new URL(ROOM_SERVER_URL).protocol === 'https:',
+            
             config: {
                 iceServers: [
-                    // Multiple STUN servers for better NAT discovery
+                    // STUN servers for NAT discovery
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
                     { urls: 'stun:stun2.l.google.com:19302' },
-                    { urls: 'stun:stun3.l.google.com:19302' },
-                    { urls: 'stun:stun4.l.google.com:19302' },
+                    
+                    // Metered TURN servers (free tier)
+                    {
+                        urls: 'turn:a.relay.metered.ca:80',
+                        username: 'e88a775049f89ee69ae55cf7',
+                        credential: 'dQhWKOH1rQqnBRhZ'
+                    },
+                    {
+                        urls: 'turn:a.relay.metered.ca:443',
+                        username: 'e88a775049f89ee69ae55cf7',
+                        credential: 'dQhWKOH1rQqnBRhZ'
+                    },
+                    {
+                        urls: 'turn:a.relay.metered.ca:443?transport=tcp',
+                        username: 'e88a775049f89ee69ae55cf7',
+                        credential: 'dQhWKOH1rQqnBRhZ'
+                    },
                 ],
                 // Optimize for maximum connection success
-                iceCandidatePoolSize: 10, // Pre-gather candidates
-                iceTransportPolicy: 'all', // Try all connection methods
-                bundlePolicy: 'max-bundle', // Bundle media for efficiency
-                rtcpMuxPolicy: 'require', // Multiplex RTP and RTCP
+                iceCandidatePoolSize: 10,
+                iceTransportPolicy: 'all',
+                bundlePolicy: 'max-bundle',
+                rtcpMuxPolicy: 'require',
             },
-            // Reduce debug logging in production
-            debug: 1
+            // Debug logging
+            debug: 2
         });
 
         peer.on('open', (id) => {
