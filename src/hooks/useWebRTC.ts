@@ -15,8 +15,6 @@ type QueuedFile = {
 }
 
 const ROOM_SERVER_URL = import.meta.env.VITE_ROOM_SERVER_URL || 'http://localhost:3001';
-const TWILIO_SID = import.meta.env.VITE_TWILIO_SID;
-const TWILIO_SECRET = import.meta.env.VITE_TWILIO_SECRET;
 
 export function useWebRTC() {
     const [peerId, setPeerId] = useState('');
@@ -194,38 +192,45 @@ export function useWebRTC() {
         fileQueue.current = fileQueue.current.filter(q => q.peerId !== peerId);
     }
 
-    const connect = () => {
+    const connect = async () => {
         if (peerInstance.current) return;
 
-        // Connect to your own PeerJS server with TURN configuration
+        // Fetch TURN credentials from backend
+        let iceServers = [
+            // Default STUN servers
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+        ];
+
+        try {
+            console.log('🔄 Fetching TURN credentials from backend...');
+            const response = await fetch(`${ROOM_SERVER_URL}/turn-credentials`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                iceServers = data.iceServers;
+                console.log('✅ TURN credentials fetched successfully');
+                console.log('🔧 ICE Servers:', iceServers.map((s: any) => ({
+                    urls: s.urls,
+                    hasUsername: !!s.username,
+                    hasCredential: !!s.credential
+                })));
+            } else {
+                console.warn('⚠️  Failed to fetch TURN credentials, using STUN only');
+            }
+        } catch (error) {
+            console.warn('⚠️  Error fetching TURN credentials:', error);
+            console.log('📡 Falling back to STUN-only mode');
+        }
+
+        // Connect to your own PeerJS server with dynamic TURN configuration
         const peer = new Peer({
             host: new URL(ROOM_SERVER_URL).hostname,
             port: new URL(ROOM_SERVER_URL).protocol === 'https:' ? 443 : 80,
             path: '/peerjs',
             secure: new URL(ROOM_SERVER_URL).protocol === 'https:',
             config: {
-                iceServers: [
-                    // Google STUN servers for NAT discovery
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    
-                    // Twilio TURN servers (enterprise-grade reliability)
-                    {
-                        urls: 'turn:global.turn.twilio.com:3478?transport=udp',
-                        username: TWILIO_SID,
-                        credential: TWILIO_SECRET
-                    },
-                    {
-                        urls: 'turn:global.turn.twilio.com:3478?transport=tcp',
-                        username: TWILIO_SID,
-                        credential: TWILIO_SECRET
-                    },
-                    {
-                        urls: 'turn:global.turn.twilio.com:443?transport=tcp',
-                        username: TWILIO_SID,
-                        credential: TWILIO_SECRET
-                    },
-                ],
+                iceServers,
                 // Optimize for maximum connection success
                 iceCandidatePoolSize: 10,
                 iceTransportPolicy: 'all',
@@ -297,14 +302,26 @@ export function useWebRTC() {
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
                     const candidate = event.candidate.candidate;
+                    const type = event.candidate.type; // host, srflx, relay
                     const isIPv6 = candidate.includes(':') && !candidate.includes('.');
-                    console.log(`🧊 ICE Candidate (${isIPv6 ? 'IPv6' : 'IPv4'}):`, candidate.substring(0, 50));
+                    
+                    // Highlight relay (TURN) candidates
+                    if (type === 'relay') {
+                        console.log(`🎯 ICE Candidate (RELAY/TURN):`, candidate.substring(0, 80));
+                    } else {
+                        console.log(`🧊 ICE Candidate (${type || (isIPv6 ? 'IPv6' : 'IPv4')}):`, candidate.substring(0, 50));
+                    }
                 }
             };
 
             // Monitor ICE connection state changes
             peerConnection.oniceconnectionstatechange = () => {
                 console.log(`🔌 ICE Connection State (${conn.peer}):`, peerConnection.iceConnectionState);
+                
+                // Log failed state with details
+                if (peerConnection.iceConnectionState === 'failed') {
+                    console.error(`❌ ICE Connection FAILED for ${conn.peer} - TURN servers may not be working`);
+                }
             };
 
             // Monitor ICE gathering state
@@ -393,14 +410,26 @@ export function useWebRTC() {
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
                     const candidate = event.candidate.candidate;
+                    const type = event.candidate.type; // host, srflx, relay
                     const isIPv6 = candidate.includes(':') && !candidate.includes('.');
-                    console.log(`🧊 ICE Candidate (${isIPv6 ? 'IPv6' : 'IPv4'}):`, candidate.substring(0, 50));
+                    
+                    // Highlight relay (TURN) candidates
+                    if (type === 'relay') {
+                        console.log(`🎯 ICE Candidate (RELAY/TURN):`, candidate.substring(0, 80));
+                    } else {
+                        console.log(`🧊 ICE Candidate (${type || (isIPv6 ? 'IPv6' : 'IPv4')}):`, candidate.substring(0, 50));
+                    }
                 }
             };
 
             // Monitor ICE connection state changes
             peerConnection.oniceconnectionstatechange = () => {
                 console.log(`🔌 ICE Connection State (${remotePeerId}):`, peerConnection.iceConnectionState);
+                
+                // Log failed state with details
+                if (peerConnection.iceConnectionState === 'failed') {
+                    console.error(`❌ ICE Connection FAILED for ${remotePeerId} - TURN servers may not be working`);
+                }
             };
 
             // Monitor ICE gathering state
