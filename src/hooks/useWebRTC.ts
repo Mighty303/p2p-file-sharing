@@ -89,14 +89,27 @@ export function useWebRTC() {
             const data = await response.json();
             setCurrentRoom(roomCode);
             
+            console.log(`🏠 Created room ${roomCode}`);
+            
             // Connect to any existing peers in the room
             const otherPeers = data.peers.filter((p: string) => p !== peerId);
             for (const peer of otherPeers) {
                 connectToPeer(peer);
             }
             
-            // Start polling for new members every 3 seconds
-            pollInterval.current = window.setInterval(pollRoomMembers, 3000);
+            // Start aggressive polling (every 1 second) for the first 30 seconds
+            // This catches joiners quickly
+            let pollCount = 0;
+            const aggressivePoll = setInterval(async () => {
+                await pollRoomMembers();
+                pollCount++;
+                
+                if (pollCount >= 30) {
+                    clearInterval(aggressivePoll);
+                    // Switch to normal 3-second polling
+                    pollInterval.current = window.setInterval(pollRoomMembers, 3000);
+                }
+            }, 1000);
             
             return roomCode;
         } catch (err) {
@@ -120,15 +133,29 @@ export function useWebRTC() {
             const data = await response.json();
             setCurrentRoom(roomCode);
             
-            // Connect to all peers in the room
+            console.log(`📥 Joined room ${roomCode}, found ${data.peers.length} existing peers`);
+            
+            // Connect to all existing peers immediately
             for (const peer of data.peers) {
                 if (peer !== peerId) {
+                    console.log(`🔗 Connecting to existing peer: ${peer}`);
                     connectToPeer(peer);
                 }
             }
             
-            // Start polling for new members every 3 seconds
-            pollInterval.current = window.setInterval(pollRoomMembers, 3000);
+            // Start aggressive polling (every 500ms) for the first 15 seconds
+            // This makes existing peers discover the new joiner faster
+            let pollCount = 0;
+            const aggressivePoll = setInterval(async () => {
+                await pollRoomMembers();
+                pollCount++;
+                
+                if (pollCount >= 30) { // 30 * 500ms = 15 seconds
+                    clearInterval(aggressivePoll);
+                    // Switch to normal 3-second polling
+                    pollInterval.current = window.setInterval(pollRoomMembers, 3000);
+                }
+            }, 500);
         } catch (err) {
             console.error('Failed to join room:', err);
             throw err;
